@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: codebreak_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: codebreak
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: codebreak_secure_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d codebreak"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.server
+    container_name: codebreak_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DATABASE_URL: postgresql://postgres:codebreak_secure_password@postgres:5432/codebreak?schema=public
+      JWT_SECRET: codebreak_jwt_super_secret_production_key_2026_x89f
+      JWT_EXPIRES_IN: 24h
+      CLIENT_URL: http://localhost
+      CORS_ORIGINS: http://localhost,http://localhost:5173
+    ports:
+      - "5000:5000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.client
+    container_name: codebreak_web
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  pgdata:

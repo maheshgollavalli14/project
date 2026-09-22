@@ -1,0 +1,45 @@
+# ==========================================
+# CODEBREAK Backend Service Dockerfile
+# Multi-stage production build
+# ==========================================
+
+FROM node:22-alpine AS builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apk add --no-cache python3 make g++
+
+# Copy package files and prisma schema
+COPY server/package*.json ./
+COPY server/prisma ./prisma/
+
+RUN npm ci
+
+# Copy server source code
+COPY server/ ./
+
+# Generate Prisma Client & compile TypeScript
+RUN npx prisma generate
+RUN npm run build
+
+# --- Production Runtime Stage ---
+FROM node:22-alpine AS runner
+
+WORKDIR /app
+
+# Install runtime compilers/interpreters for isolated sandbox execution
+RUN apk add --no-cache python3 openjdk17-jre gcc g++
+
+ENV NODE_ENV=production
+ENV PORT=5000
+
+# Copy node_modules and built dist from builder
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+
+EXPOSE 5000
+
+CMD ["node", "dist/app.js"]

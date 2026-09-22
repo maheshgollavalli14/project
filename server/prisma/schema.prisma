@@ -1,0 +1,413 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PARTICIPANT
+  TEAM_MEMBER
+  ADMIN
+}
+
+enum ParticipationType {
+  INDIVIDUAL
+  TEAM
+}
+
+enum ContestStatus {
+  UPCOMING
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum RoundStatus {
+  UPCOMING
+  ACTIVE
+  COMPLETED
+}
+
+enum RoundType {
+  MCQ_OUTPUT_CODING
+  DEBUGGING_JUMBLED
+  FINAL_CODING
+}
+
+enum QuestionType {
+  MCQ
+  OUTPUT_PREDICTION
+  DEBUGGING
+  JUMBLED
+  CODING
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum SubmissionStatus {
+  PENDING
+  RUNNING
+  ACCEPTED
+  WRONG_ANSWER
+  TIME_LIMIT_EXCEEDED
+  COMPILATION_ERROR
+  RUNTIME_ERROR
+}
+
+enum LockStatus {
+  ACTIVE
+  RELEASED
+  EXPIRED
+}
+
+enum ViolationType {
+  FULLSCREEN_EXIT
+  TAB_SWITCH
+  COPY
+  PASTE
+  WINDOW_BLUR
+  SUSPICIOUS_ACTIVITY
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum TeamMemberRole {
+  LEADER
+  MEMBER
+}
+
+model User {
+  id           String      @id @default(uuid())
+  email        String      @unique
+  passwordHash String
+  role         Role        @default(PARTICIPANT)
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  profile      Profile?
+  teamMember   TeamMember?
+  submissions  Submission[]
+  savedCodes   SavedCode[]
+  scores       Score[]
+  violations   Violation[]
+  payments     Payment[]
+  locks        ProblemLock[]
+
+  @@index([email])
+}
+
+model Profile {
+  id             String            @id @default(uuid())
+  userId         String            @unique
+  fullName       String
+  college        String
+  phone          String
+  participantId  String            @unique
+  participation  ParticipationType @default(INDIVIDUAL)
+  avatarUrl      String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Team {
+  id             String        @id @default(uuid())
+  name           String
+  teamId         String        @unique
+  college        String
+  inviteCode     String?
+  status         String        @default("ACTIVE")
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  members        TeamMember[]
+  submissions    Submission[]
+  savedCodes     SavedCode[]
+  scores         Score[]
+  violations     Violation[]
+  payments       Payment[]
+  locks          ProblemLock[]
+
+  @@index([teamId])
+}
+
+model TeamMember {
+  id         String         @id @default(uuid())
+  teamId     String
+  userId     String         @unique
+  roleInTeam TeamMemberRole @default(MEMBER)
+  joinedAt   DateTime       @default(now())
+
+  team       Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+}
+
+model Contest {
+  id                  String         @id @default(uuid())
+  title               String         @default("CODEBREAK 2026")
+  tagline             String         @default("BREAK THE CODE WITHIN YOU")
+  description         String
+  status              ContestStatus  @default(UPCOMING)
+  registrationOpen    Boolean        @default(true)
+  registrationFee     Float          @default(150.0)
+  qualificationCutoff Int            @default(20)
+  rules               String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  rounds              ContestRound[]
+  scores              Score[]
+  violations          Violation[]
+}
+
+model ContestRound {
+  id              String       @id @default(uuid())
+  contestId       String
+  roundNumber     Int          // 1, 2, 3
+  title           String       // e.g. "Round 1: MCQs & Code Logic"
+  description     String
+  type            RoundType
+  startTime       DateTime?
+  endTime         DateTime?
+  durationMinutes Int          @default(45)
+  status          RoundStatus  @default(UPCOMING)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  contest         Contest      @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  questions       Question[]
+  submissions     Submission[]
+  scores          Score[]
+  locks           ProblemLock[]
+
+  @@unique([contestId, roundNumber])
+}
+
+model Question {
+  id               String           @id @default(uuid())
+  roundId          String
+  orderNumber      Int              @default(1)
+  title            String
+  description      String           // Markdown statement
+  type             QuestionType
+  difficulty       Difficulty       @default(EASY)
+  points           Int              @default(10)
+  timeLimitMs      Int              @default(2000)
+  memoryLimitMb    Int              @default(128)
+  initialCode      String?          // Starter code or jumbled snippet
+  expectedOutput   String?          // For output prediction / debugging
+  constraints      String?
+  allowedLanguages String           @default("python,java,cpp")
+  isPublished      Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  round            ContestRound     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  options          QuestionOption[]
+  testCases        TestCase[]
+  submissions      Submission[]
+  savedCodes       SavedCode[]
+  locks            ProblemLock[]
+
+  @@index([roundId])
+}
+
+model QuestionOption {
+  id          String   @id @default(uuid())
+  questionId  String
+  text        String
+  isCorrect   Boolean  @default(false)
+  explanation String?
+  orderNumber Int      @default(1)
+
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+}
+
+model TestCase {
+  id             String   @id @default(uuid())
+  questionId     String
+  input          String
+  expectedOutput String
+  isPublic       Boolean  @default(false) // true = Sample Test, false = Hidden Official Test
+  weight         Int      @default(1)
+  createdAt      DateTime @default(now())
+
+  question       Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+}
+
+model ProblemLock {
+  id            String     @id @default(uuid())
+  contestId     String
+  roundId       String
+  questionId    String
+  teamId        String
+  userId        String
+  lockedAt      DateTime   @default(now())
+  lastHeartbeat DateTime   @default(now())
+  expiresAt     DateTime
+  status        LockStatus @default(ACTIVE)
+
+  round         ContestRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  question      Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  team          Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, questionId])
+  @@index([expiresAt])
+}
+
+model Submission {
+  id           String           @id @default(uuid())
+  questionId   String
+  userId       String
+  teamId       String?
+  roundId      String
+  language     String           // python, java, cpp, text
+  code         String
+  status       SubmissionStatus @default(PENDING)
+  score        Int              @default(0)
+  runtimeMs    Int?
+  memoryKb     Int?
+  passedTests  Int              @default(0)
+  totalTests   Int              @default(0)
+  errorOutput  String?
+  createdAt    DateTime         @default(now())
+
+  question     Question         @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team         Team?            @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  round        ContestRound     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([teamId])
+  @@index([questionId])
+}
+
+model SavedCode {
+  id               String    @id @default(uuid())
+  questionId       String
+  userId           String
+  teamId           String?
+  code             String?
+  language         String?
+  selectedOptionId String?
+  markedForReview  Boolean   @default(false)
+  updatedAt        DateTime  @updatedAt
+
+  question         Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team             Team?     @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, questionId])
+  @@index([teamId, questionId])
+}
+
+model Score {
+  id             String       @id @default(uuid())
+  contestId      String
+  roundId        String?
+  userId         String?
+  teamId         String?
+  points         Int          @default(0)
+  solvedCount    Int          @default(0)
+  penaltySeconds Int          @default(0)
+  isQualified    Boolean      @default(false)
+  rank           Int?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  contest        Contest      @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  round          ContestRound? @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team           Team?        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([contestId, roundId, userId])
+  @@unique([contestId, roundId, teamId])
+  @@index([contestId, points, penaltySeconds])
+}
+
+model Violation {
+  id        String        @id @default(uuid())
+  userId    String
+  teamId    String?
+  contestId String
+  roundId   String?
+  type      ViolationType
+  severity  Severity      @default(LOW)
+  metadata  String?       // JSON string with extra details like timestamp, key info
+  reviewed  Boolean       @default(false)
+  adminNote String?
+  createdAt DateTime      @default(now())
+
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team      Team?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  contest   Contest       @relation(fields: [contestId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([contestId])
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  userId        String
+  teamId        String?
+  amount        Float
+  currency      String        @default("INR")
+  transactionId String        @unique
+  status        PaymentStatus @default(COMPLETED)
+  provider      String        @default("MOCK_GATEWAY")
+  createdAt     DateTime      @default(now())
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team          Team?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@index([transactionId])
+  @@index([userId])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String
+  actorEmail String
+  action     String   // e.g. "START_ROUND", "OVERRIDE_SCORE", "UPDATE_QUESTION"
+  entity     String   // e.g. "ContestRound", "Score", "Question"
+  entityId   String?
+  metadata   String?  // JSON string
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+}
+
+model ContestSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+}
