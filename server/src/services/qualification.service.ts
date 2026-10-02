@@ -22,8 +22,6 @@ export class QualificationService {
       where: {
         contestId,
         roundId: { in: roundIds },
-        userId: { not: null },
-        teamId: null,
       },
       include: {
         user: { include: { profile: true } },
@@ -35,28 +33,10 @@ export class QualificationService {
       ],
     });
 
-    // Fetch team scores
-    const teamScores = await prisma.score.findMany({
-      where: {
-        contestId,
-        roundId: { in: roundIds },
-        teamId: { not: null },
-      },
-      include: {
-        team: true,
-      },
-      orderBy: [
-        { points: 'desc' },
-        { solvedCount: 'desc' },
-        { penaltySeconds: 'asc' },
-      ],
-    });
-
     const updatedIndividuals: string[] = [];
-    const updatedTeams: string[] = [];
 
     await prisma.$transaction(async (tx) => {
-      // 1. Process individuals
+      // Process individuals
       for (let i = 0; i < individualScores.length; i++) {
         const s = individualScores[i];
         const isQualified = i < cutoffCount;
@@ -64,18 +44,7 @@ export class QualificationService {
           where: { id: s.id },
           data: { isQualified, rank: i + 1 },
         });
-        if (isQualified) updatedIndividuals.push(s.userId!);
-      }
-
-      // 2. Process teams
-      for (let i = 0; i < teamScores.length; i++) {
-        const s = teamScores[i];
-        const isQualified = i < cutoffCount;
-        await tx.score.update({
-          where: { id: s.id },
-          data: { isQualified, rank: i + 1 },
-        });
-        if (isQualified) updatedTeams.push(s.teamId!);
+        if (isQualified) updatedIndividuals.push(s.userId);
       }
 
       // Update contest qualification cutoff setting
@@ -95,7 +64,6 @@ export class QualificationService {
           metadata: JSON.stringify({
             cutoffCount,
             qualifiedIndividuals: updatedIndividuals.length,
-            qualifiedTeams: updatedTeams.length,
           }),
         },
       });
@@ -105,19 +73,17 @@ export class QualificationService {
       contestId,
       cutoffCount,
       qualifiedIndividualsCount: updatedIndividuals.length,
-      qualifiedTeamsCount: updatedTeams.length,
     });
 
     return {
       success: true,
       cutoffCount,
       qualifiedIndividualsCount: updatedIndividuals.length,
-      qualifiedTeamsCount: updatedTeams.length,
     };
   }
 
   /**
-   * Evaluates whether a participant or team is permitted to enter a specific round.
+   * Evaluates whether a participant is permitted to enter a specific round.
    * Round 1 & Round 2 are open to all registered candidates.
    * Round 3 (Grand Finale) is strictly restricted to Top qualifiers from Rounds 1 & 2!
    */
@@ -125,7 +91,6 @@ export class QualificationService {
     roundNumber: number,
     contestId: string,
     userId: string,
-    teamId?: string | null,
     userRole?: string
   ): Promise<{ allowed: boolean; reason?: string; cutoff?: number }> {
     // Admins always have director access
@@ -160,11 +125,11 @@ export class QualificationService {
       };
     }
 
-    // Check if this specific user or team is marked as qualified
+    // Check if this specific user is marked as qualified
     const qualifiedScore = await prisma.score.findFirst({
       where: {
         contestId,
-        ...(teamId ? { teamId } : { userId }),
+        userId,
         isQualified: true,
       },
     });
@@ -180,4 +145,3 @@ export class QualificationService {
     return { allowed: true, cutoff };
   }
 }
-

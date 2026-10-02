@@ -3,9 +3,7 @@ import { api } from '../services/api.js';
 import { ContestRound } from '../types/index.js';
 import { GlassCard } from '../components/ui/GlassCard.js';
 import { StatusBadge } from '../components/ui/StatusBadge.js';
-import { Clock, Award, Code, CheckCircle, ArrowRight, Zap, Terminal } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { GradientButton } from '../components/ui/GradientButton.js';
+import { Clock, Terminal } from 'lucide-react';
 
 export const Rounds: React.FC = () => {
   const [rounds, setRounds] = useState<ContestRound[]>([]);
@@ -167,14 +165,6 @@ export const Rounds: React.FC = () => {
             </div>
           </div>
         </GlassCard>
-      </div>
-
-      <div className="mt-12 text-center">
-        <Link to="/register">
-          <GradientButton size="lg" rightIcon={<ArrowRight className="w-4 h-4" />}>
-            Enroll For All 3 Rounds
-          </GradientButton>
-        </Link>
       </div>
     </div>
   );

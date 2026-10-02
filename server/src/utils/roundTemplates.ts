@@ -366,23 +366,20 @@ export function getRound2Templates() {
       type: 'JUMBLED',
       difficulty: 'MEDIUM',
       points: 25,
-      initialCode: `def findKthLargest(nums, k):
-    target = len(nums) - k
-    def quickSelect(l, r):
-        pivot = nums[r]
-        p = l
-        for i in range(l, r):
-            if nums[i] <= pivot:
-                nums[p], nums[i] = nums[i], nums[p]
-                p += 1
-        nums[p], nums[r] = nums[r], nums[p]
-        if p > target: return quickSelect(l, p - 1)
-        elif p < target: return quickSelect(p + 1, r)
-        else: return nums[p]
-    return quickSelect(0, len(nums) - 1)
+      initialCode: `import sys
 
-# Sample invocation
-import sys
+def findKthLargest(nums, k):
+    # JUMBLED CODE: Reorder, indent, and reconstruct QuickSelect
+    # lines to return the k-th largest element in nums.
+    # [Lines available]:
+    #   target = len(nums) - k
+    #   pivot = nums[r]
+    #   if p > target: return quickSelect(l, p - 1)
+    #   nums[p], nums[r] = nums[r], nums[p]
+    #   for i in range(l, r):
+    #   def quickSelect(l, r):
+    pass
+
 input_data = sys.stdin.read().split()
 if input_data:
     k = int(input_data[0])
@@ -404,17 +401,17 @@ if input_data:
       initialCode: `import sys
 
 def twoSum(numbers, target):
-    # Fix the index bounds and 1-based indexing
+    # BUGGY CODE: Fix pointer logic, 1-based indexing, and index out of bounds
     l = 0
-    r = len(numbers) - 1
-    while l < r:
+    r = len(numbers)
+    while l <= r:
         s = numbers[l] + numbers[r]
         if s == target:
-            return [l + 1, r + 1]
+            return [l, r]
         elif s < target:
-            l += 1
-        else:
             r -= 1
+        else:
+            l += 1
     return [-1, -1]
 
 data = sys.stdin.read().split()
@@ -439,16 +436,13 @@ if data:
       initialCode: `import sys
 
 def isValid(s):
-    mapping = {')': '(', '}': '{', ']': '['}
-    stack = []
-    for char in s:
-        if char in mapping:
-            top = stack.pop() if stack else '#'
-            if mapping[char] != top:
-                return False
-        else:
-            stack.append(char)
-    return len(stack) == 0
+    # JUMBLED CODE: Reconstruct the stack processing
+    # mapping = {')': '(', '}': '{', ']': '['}
+    # if char in mapping:
+    # stack.append(char)
+    # elif not stack or mapping[char] != stack.pop():
+    # return not stack
+    pass
 
 line = sys.stdin.read().strip()
 if line:

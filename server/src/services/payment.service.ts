@@ -6,7 +6,6 @@ import { logger } from '../utils/logger.js';
 
 export interface CreatePaymentParams {
   userId: string;
-  teamId?: string | null;
   amount: number;
   currency?: string;
 }
@@ -51,7 +50,7 @@ export class PaymentService {
   /**
    * Verify payment signature server-side
    */
-  static async verifyPayment(params: VerifyPaymentParams, userId: string, teamId?: string | null) {
+  static async verifyPayment(params: VerifyPaymentParams, userId: string) {
     let isValid = false;
 
     if (env.PAYMENT_GATEWAY === 'razorpay' && env.RAZORPAY_KEY_SECRET && params.orderId && params.signature) {
@@ -77,7 +76,6 @@ export class PaymentService {
     const payment = await prisma.payment.create({
       data: {
         userId,
-        teamId: teamId || null,
         amount: 200.0, // Authoritative contest fee
         transactionId: params.transactionId,
         status: PaymentStatus.COMPLETED,
@@ -89,7 +87,6 @@ export class PaymentService {
       paymentId: payment.id,
       transactionId: params.transactionId,
       userId,
-      teamId,
     });
 
     return payment;

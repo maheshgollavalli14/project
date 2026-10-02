@@ -24,7 +24,7 @@ export const Contact: React.FC = () => {
           Contact The Committee
         </h1>
         <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-          Have questions regarding team registration, venue logistics, or contest policies? Our technical organizers are ready to assist.
+          Have questions regarding participant registration, venue logistics, or contest policies? Our technical organizers are ready to assist.
         </p>
       </div>
 
@@ -115,7 +115,7 @@ export const Contact: React.FC = () => {
                     required
                     value={formData.subject}
                     onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                    placeholder="e.g. Question regarding Team Member replacement"
+                    placeholder="e.g. Question regarding contest registration or rules"
                     className="w-full bg-[#141738] border border-purple-500/25 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-400"
                   />
                 </div>

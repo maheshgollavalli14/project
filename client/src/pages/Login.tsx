@@ -4,25 +4,37 @@ import { useAuthStore } from '../stores/authStore.js';
 import { api } from '../services/api.js';
 import { GlassCard } from '../components/ui/GlassCard.js';
 import { GradientButton } from '../components/ui/GradientButton.js';
-import { Terminal, Lock, Mail, ArrowRight, Shield, User, Users } from 'lucide-react';
+import { Terminal, Lock, Mail, ArrowRight } from 'lucide-react';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { setUser } = useAuthStore();
+  const { user, isAuthenticated, setUser } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  React.useEffect(() => {
+    if (isAuthenticated && user) {
+      if (user.role === 'ADMIN') {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setError(null);
+    setErrorCode(null);
     setIsLoading(true);
 
     try {
       const res = await api.post('/api/auth/login', { email, password });
       if (res.success && res.data?.user) {
-        setUser(res.data.user);
+        setUser(res.data.user, res.data.token, res.data.sessionId);
         if (res.data.user.role === 'ADMIN') {
           navigate('/admin');
         } else {
@@ -31,14 +43,10 @@ export const Login: React.FC = () => {
       }
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check credentials.');
+      setErrorCode(err.code || null);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const fillCredentials = (e: string, p: string) => {
-    setEmail(e);
-    setPassword(p);
   };
 
   return (
@@ -60,8 +68,15 @@ export const Login: React.FC = () => {
         {/* Login Card */}
         <GlassCard className="p-8">
           {error && (
-            <div className="mb-6 p-3 rounded-xl bg-rose-950/50 border border-rose-500/40 text-rose-300 text-xs text-center font-medium">
-              {error}
+            <div className="mb-6 p-3.5 rounded-xl bg-rose-950/50 border border-rose-500/40 text-rose-300 text-xs text-center font-medium">
+              {errorCode === 'ACCOUNT_ALREADY_ACTIVE' ? (
+                <div className="space-y-1">
+                  <div className="font-bold text-rose-200 text-sm">Account Already Active</div>
+                  <div className="text-slate-300">This account is already logged in on another device or browser.</div>
+                </div>
+              ) : (
+                <div>{error}</div>
+              )}
             </div>
           )}
 
@@ -109,58 +124,6 @@ export const Login: React.FC = () => {
               Sign In to Arena
             </GradientButton>
           </form>
-
-          {/* Quick Fill Demo Credentials */}
-          <div className="mt-8 pt-6 border-t border-purple-500/15">
-            <span className="block text-[11px] uppercase tracking-wider font-mono text-purple-400/80 mb-3 text-center">
-              Quick-Fill Test Credentials
-            </span>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => fillCredentials('admin@codebreak.dev', 'Admin@CodeBreak2026')}
-                className="p-2 rounded-lg bg-[#141738] hover:bg-purple-900/30 border border-purple-500/20 text-[10px] text-left text-slate-300 transition-colors"
-              >
-                <span className="text-purple-300 font-bold block flex items-center gap-1">
-                  <Shield className="w-3 h-3 text-purple-400" /> Admin
-                </span>
-                <span>admin@codebreak.dev</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => fillCredentials('alex.chen@mit.edu', 'Password@123')}
-                className="p-2 rounded-lg bg-[#141738] hover:bg-purple-900/30 border border-purple-500/20 text-[10px] text-left text-slate-300 transition-colors"
-              >
-                <span className="text-purple-300 font-bold block flex items-center gap-1">
-                  <User className="w-3 h-3 text-purple-400" /> Solo Participant
-                </span>
-                <span>alex.chen@mit.edu</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => fillCredentials('rohan.gupta@nitt.edu', 'Password@123')}
-                className="p-2 rounded-lg bg-[#141738] hover:bg-indigo-900/30 border border-indigo-500/20 text-[10px] text-left text-slate-300 transition-colors"
-              >
-                <span className="text-indigo-300 font-bold block flex items-center gap-1">
-                  <Users className="w-3 h-3 text-indigo-400" /> Team 1 Member A
-                </span>
-                <span>rohan.gupta@nitt.edu</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => fillCredentials('ananya.deshmukh@nitt.edu', 'Password@123')}
-                className="p-2 rounded-lg bg-[#141738] hover:bg-indigo-900/30 border border-indigo-500/20 text-[10px] text-left text-slate-300 transition-colors"
-              >
-                <span className="text-indigo-300 font-bold block flex items-center gap-1">
-                  <Users className="w-3 h-3 text-indigo-400" /> Team 1 Member B
-                </span>
-                <span>ananya.deshmukh@nitt.edu</span>
-              </button>
-            </div>
-          </div>
         </GlassCard>
 
         {/* Footer link */}

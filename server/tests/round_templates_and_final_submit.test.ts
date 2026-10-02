@@ -12,6 +12,17 @@ describe('Round Templates Seeding & Final Submit Integration Suite', () => {
   let outputPredictionQuestionId: string;
 
   beforeAll(async () => {
+    // Clear sessions for test users
+    await prisma.userSession.deleteMany({
+      where: { user: { email: { in: ['admin@codebreak.dev', 'alex.chen@mit.edu'] } } },
+    });
+    await prisma.participantRoundProgress.deleteMany({
+      where: { user: { email: 'alex.chen@mit.edu' } },
+    });
+    await prisma.auditLog.deleteMany({
+      where: { actorEmail: 'alex.chen@mit.edu' },
+    });
+
     // 1. Authenticate Admin
     const adminRes = await request(app)
       .post('/api/auth/login')
@@ -131,7 +142,7 @@ describe('Round Templates Seeding & Final Submit Integration Suite', () => {
     }
   });
 
-  it('4. Participant submits written output prediction to Round 1 problem -> ACCEPTED', async () => {
+  it('4. Participant submits written output prediction to Round 1 problem -> ACCEPTED in DB, SUBMITTED to participant', async () => {
     const res = await request(app)
       .post(`/api/questions/${outputPredictionQuestionId}/submit`)
       .set('Authorization', `Bearer ${participantToken}`)
@@ -139,11 +150,17 @@ describe('Round Templates Seeding & Final Submit Integration Suite', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
-    expect(res.body.data.status).toBe('ACCEPTED');
-    expect(res.body.data.score).toBe(15);
+    expect(res.body.data.status).toBe('SUBMITTED');
+
+    // Authoritative internal evaluation in DB
+    const sub = await prisma.submission.findFirst({
+      where: { id: res.body.data.submissionId },
+    });
+    expect(sub?.status).toBe('ACCEPTED');
+    expect(sub?.score).toBe(15);
   });
 
-  it('5. Participant submits incorrect written output -> WRONG_ANSWER', async () => {
+  it('5. Participant submits incorrect written output -> WRONG_ANSWER in DB, SUBMITTED to participant', async () => {
     const res = await request(app)
       .post(`/api/questions/${outputPredictionQuestionId}/submit`)
       .set('Authorization', `Bearer ${participantToken}`)
@@ -151,8 +168,14 @@ describe('Round Templates Seeding & Final Submit Integration Suite', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
-    expect(res.body.data.status).toBe('WRONG_ANSWER');
-    expect(res.body.data.score).toBe(0);
+    expect(res.body.data.status).toBe('SUBMITTED');
+
+    // Authoritative internal evaluation in DB
+    const sub = await prisma.submission.findFirst({
+      where: { id: res.body.data.submissionId },
+    });
+    expect(sub?.status).toBe('WRONG_ANSWER');
+    expect(sub?.score).toBe(0);
   });
 
   it('6. Participant clicks Final Submit -> Round finalized and locks released', async () => {
@@ -162,6 +185,6 @@ describe('Round Templates Seeding & Final Submit Integration Suite', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.message).toContain('Exam round finalized and submitted successfully');
+    expect(res.body.message).toContain('submitted successfully');
   });
 });

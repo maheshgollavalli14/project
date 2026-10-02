@@ -1,5 +1,5 @@
 import { prisma } from '../config/db.js';
-import { RoundStatus, LockStatus } from '@prisma/client';
+import { RoundStatus } from '@prisma/client';
 import { logger } from '../utils/logger.js';
 import { Server } from 'socket.io';
 
@@ -79,16 +79,7 @@ export class TimerService {
             data: { status: targetStatus },
           });
 
-          // If round is finalized/completed, release all problem locks
           if (targetStatus === RoundStatus.COMPLETED) {
-            await tx.problemLock.updateMany({
-              where: {
-                roundId: round.id,
-                status: LockStatus.ACTIVE,
-              },
-              data: { status: LockStatus.RELEASED },
-            });
-
             await tx.auditLog.create({
               data: {
                 actorId: 'SYSTEM_TIMER',

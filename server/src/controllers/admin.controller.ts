@@ -3,7 +3,7 @@ import { prisma } from '../config/db.js';
 import { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { QualificationService } from '../services/qualification.service.js';
 import { TimerService } from '../services/timer.service.js';
-import { LockStatus, RoundStatus } from '@prisma/client';
+import { RoundStatus } from '@prisma/client';
 import { logger } from '../utils/logger.js';
 import { z } from 'zod';
 import { getRound1Templates, getRound2Templates, getRound3Templates } from '../utils/roundTemplates.js';
@@ -19,31 +19,12 @@ export class AdminController {
 
       const [
         totalUsers,
-        totalIndividuals,
-        totalTeamMembers,
-        totalTeams,
         totalSubmissions,
         totalViolations,
         totalPayments,
         activeContest,
       ] = await Promise.all([
         prisma.user.count({ where: { role: { not: 'ADMIN' } } }),
-        prisma.user.count({
-          where: {
-            role: { not: 'ADMIN' },
-            OR: [
-              { profile: { participation: 'INDIVIDUAL' } },
-              { teamMember: null },
-            ],
-          },
-        }),
-        prisma.user.count({
-          where: {
-            role: { not: 'ADMIN' },
-            teamMember: { isNot: null },
-          },
-        }),
-        prisma.team.count(),
         prisma.submission.count(),
         prisma.violation.count(),
         prisma.payment.aggregate({ _sum: { amount: true }, where: { status: 'COMPLETED' } }),
@@ -66,9 +47,6 @@ export class AdminController {
         data: {
           metrics: {
             totalUsers,
-            totalIndividuals,
-            totalTeamMembers,
-            totalTeams,
             totalSubmissions,
             solvedSubmissionsCount,
             totalViolations,
@@ -89,7 +67,7 @@ export class AdminController {
    */
   static async getParticipants(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { search, participation, page = '1', limit = '20' } = req.query;
+      const { search, page = '1', limit = '20' } = req.query;
       const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
 
       const where: any = {
@@ -105,16 +83,11 @@ export class AdminController {
         ];
       }
 
-      if (participation) {
-        where.profile = { participation: participation as any };
-      }
-
       const [users, total] = await Promise.all([
         prisma.user.findMany({
           where,
           include: {
             profile: true,
-            teamMember: { include: { team: true } },
             _count: {
               select: { submissions: true, violations: true },
             },
@@ -143,67 +116,6 @@ export class AdminController {
     }
   }
 
-  /**
-   * Teams list with members and active locks
-   */
-  static async getTeams(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-    try {
-      const [teams, individuals] = await Promise.all([
-        prisma.team.findMany({
-          include: {
-            members: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    email: true,
-                    role: true,
-                    profile: true,
-                    _count: {
-                      select: { submissions: true, violations: true },
-                    },
-                  },
-                },
-              },
-              orderBy: { roleInTeam: 'asc' },
-            },
-            locks: {
-              where: { status: 'ACTIVE' },
-              include: { question: { select: { title: true } } },
-            },
-            _count: {
-              select: { submissions: true, violations: true, scores: true },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-        }),
-        prisma.user.findMany({
-          where: {
-            role: { not: 'ADMIN' },
-            teamMember: null,
-          },
-          include: {
-            profile: true,
-            locks: {
-              where: { status: 'ACTIVE' },
-              include: { question: { select: { title: true } } },
-            },
-            _count: {
-              select: { submissions: true, violations: true, scores: true },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-        }),
-      ]);
-
-      res.status(200).json({
-        success: true,
-        data: { teams, individuals },
-      });
-    } catch (err) {
-      next(err);
-    }
-  }
 
   /**
    * Full questions list for admin (including hidden test cases & correct answers)
@@ -533,12 +445,6 @@ export class AdminController {
           },
         });
 
-        // Release all locks
-        await tx.problemLock.updateMany({
-          where: { roundId, status: LockStatus.ACTIVE },
-          data: { status: LockStatus.RELEASED },
-        });
-
         await tx.auditLog.create({
           data: {
             actorId: req.user!.userId,
@@ -751,7 +657,26 @@ export class AdminController {
    */
   static async getViolations(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
+      const { type, severity, reviewed, contestId, roundId, search } = req.query;
+
+      const where: any = {};
+      if (type) where.type = type;
+      if (severity) where.severity = severity;
+      if (reviewed !== undefined && reviewed !== '') {
+        where.reviewed = reviewed === 'true';
+      }
+      if (contestId) where.contestId = contestId;
+      if (roundId) where.roundId = roundId;
+      if (search) {
+        where.OR = [
+          { user: { email: { contains: search as string, mode: 'insensitive' } } },
+          { user: { profile: { fullName: { contains: search as string, mode: 'insensitive' } } } },
+          { user: { profile: { participantId: { contains: search as string, mode: 'insensitive' } } } },
+        ];
+      }
+
       const violations = await prisma.violation.findMany({
+        where,
         include: {
           user: {
             select: {
@@ -759,15 +684,9 @@ export class AdminController {
               profile: true,
             },
           },
-          team: {
-            select: {
-              name: true,
-              teamId: true,
-            },
-          },
         },
         orderBy: { createdAt: 'desc' },
-        take: 100,
+        take: 200,
       });
 
       res.status(200).json({
@@ -857,7 +776,6 @@ export class AdminController {
         where.OR = [
           { user: { email: { contains: search as string, mode: 'insensitive' } } },
           { user: { profile: { fullName: { contains: search as string, mode: 'insensitive' } } } },
-          { team: { name: { contains: search as string, mode: 'insensitive' } } },
           { question: { title: { contains: search as string, mode: 'insensitive' } } },
         ];
       }
@@ -872,9 +790,6 @@ export class AdminController {
                 email: true,
                 profile: { select: { fullName: true, participantId: true } },
               },
-            },
-            team: {
-              select: { id: true, name: true, teamId: true },
             },
             question: {
               select: {

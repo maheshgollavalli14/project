@@ -7,7 +7,7 @@ export interface TokenPayload {
   userId: string;
   email: string;
   role: Role;
-  teamId?: string | null;
+  sessionId?: string;
 }
 
 const COOKIE_NAME = 'cb_access_token';
@@ -18,9 +18,19 @@ export function signToken(payload: TokenPayload): string {
   });
 }
 
+export const generateToken = signToken;
+
 export function verifyToken(token: string): TokenPayload | null {
   try {
     return jwt.verify(token, env.JWT_SECRET) as TokenPayload;
+  } catch {
+    return null;
+  }
+}
+
+export function verifyTokenIgnoringExpiration(token: string): TokenPayload | null {
+  try {
+    return jwt.verify(token, env.JWT_SECRET, { ignoreExpiration: true }) as TokenPayload;
   } catch {
     return null;
   }

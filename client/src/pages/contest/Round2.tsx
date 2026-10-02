@@ -11,7 +11,7 @@ import { CodeEditor } from '../../components/CodeEditor.js';
 import { AntiCheatGuard } from '../../components/AntiCheatGuard.js';
 import { StatusBadge } from '../../components/ui/StatusBadge.js';
 import { GradientButton } from '../../components/ui/GradientButton.js';
-import { Bug, Puzzle, Play, Send, CheckCircle2, XCircle, Lock, ArrowLeft, ArrowRight, Clock, ShieldAlert, CheckSquare } from 'lucide-react';
+import { Bug, Puzzle, Play, Send, CheckCircle2, XCircle, ArrowLeft, ArrowRight, Clock, ShieldAlert, CheckSquare } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import { FinalSubmitModal } from '../../components/FinalSubmitModal.js';
@@ -19,19 +19,20 @@ import { FinalSubmitModal } from '../../components/FinalSubmitModal.js';
 export const Round2: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { setActiveRound, setRemainingSeconds, setProblemLock, activeLocks } = useContestStore();
+  const { setActiveRound, setRemainingSeconds } = useContestStore();
 
   const [round, setRound] = useState<ContestRound | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [code, setCode] = useState('');
+  const [language, setLanguage] = useState<string>('python');
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFinalModalOpen, setIsFinalModalOpen] = useState(false);
   const [isFinalSubmitting, setIsFinalSubmitting] = useState(false);
   const [runResults, setRunResults] = useState<any>(null);
-  const [lockError, setLockError] = useState<string | null>(null);
-  const [currentLockId, setCurrentLockId] = useState<string | null>(null);
+  const [submissionFeedback, setSubmissionFeedback] = useState<any>(null);
+  const [submittedQuestions, setSubmittedQuestions] = useState<Set<string>>(new Set());
   const [accessError, setAccessError] = useState<{
     code: string;
     message: string;
@@ -39,10 +40,8 @@ export const Round2: React.FC = () => {
     endTime?: string;
   } | null>(null);
 
-  // Load Round 2 data & initialize socket
+  // Load Round 2 data
   useEffect(() => {
-    const socket = getSocket();
-
     async function loadRound() {
       try {
         const contestRes = await api.get('/api/contests/current');
@@ -60,8 +59,7 @@ export const Round2: React.FC = () => {
 
                 if (qList.length > 0) {
                   setCode(qList[0].savedState?.code || qList[0].initialCode || '');
-                  // Try locking first question for team
-                  requestLock(qList[0].id, roundDetails.data.round.contestId, roundDetails.data.round.id);
+                  setLanguage(qList[0].savedState?.language || 'python');
                 }
               }
             } catch (err: any) {
@@ -80,67 +78,50 @@ export const Round2: React.FC = () => {
     }
 
     loadRound();
-
-    // Socket events for real-time team locks
-    socket.on('problem:lock-updated', ({ questionId, lockedBy, status }) => {
-      if (status === 'ACTIVE' && lockedBy) {
-        setProblemLock(questionId, {
-          userId: lockedBy.userId,
-          fullName: lockedBy.fullName,
-          isLockedByMe: lockedBy.userId === user?.id,
-          expiresAt: new Date(Date.now() + 45000).toISOString(),
-        });
-      } else {
-        setProblemLock(questionId, null);
-      }
-    });
-
-    return () => {
-      socket.off('problem:lock-updated');
-    };
   }, []);
 
   const currentQ = questions[currentIndex];
 
-  const requestLock = async (questionId: string, contestId: string, roundId: string) => {
-    setLockError(null);
-    try {
-      const res = await api.post('/api/team/problem-lock', {
-        contestId,
-        roundId,
-        questionId,
-      });
-
-      if (res.data?.lock) {
-        setCurrentLockId(res.data.lock.id);
-      }
-    } catch (err: any) {
-      if (err.statusCode === 409) {
-        setLockError(err.message || 'Problem is locked by teammate');
-      }
-    }
-  };
+  // Debounced autosave effect for code changes
+  useEffect(() => {
+    if (!currentQ) return;
+    const timer = setTimeout(() => {
+      api.post(`/api/questions/${currentQ.id}/save`, { code, language }).catch(() => {});
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [code, language, currentQ?.id]);
 
   const handleSelectQuestion = (idx: number) => {
-    // Release previous lock if team mode
-    if (currentQ && round) {
-      api.delete('/api/team/problem-lock', { data: { questionId: currentQ.id } }).catch(() => {});
+    if (idx === currentIndex) return;
+
+    // 1. Save current question code before switching
+    if (currentQ) {
+      const updated = [...questions];
+      updated[currentIndex].savedState = {
+        ...updated[currentIndex].savedState,
+        questionId: currentQ.id,
+        code,
+        language,
+      };
+      setQuestions(updated);
+
+      api.post(`/api/questions/${currentQ.id}/save`, { code, language }).catch(() => {});
     }
 
+    // 2. Switch to target question with isolated code
     setCurrentIndex(idx);
     const q = questions[idx];
     setCode(q.savedState?.code || q.initialCode || '');
+    setLanguage(q.savedState?.language || 'python');
     setRunResults(null);
-
-    if (round) {
-      requestLock(q.id, round.contestId, round.id);
-    }
+    setSubmissionFeedback(null);
   };
 
   const handleRun = async (userCode: string, lang: string) => {
     if (!currentQ) return;
     setIsRunning(true);
     setRunResults(null);
+    setSubmissionFeedback(null);
 
     try {
       const res = await api.post(`/api/questions/${currentQ.id}/run`, {
@@ -158,34 +139,74 @@ export const Round2: React.FC = () => {
   const handleSubmit = async (userCode: string, lang: string) => {
     if (!currentQ) return;
     setIsSubmitting(true);
+    setRunResults(null);
+    setSubmissionFeedback(null);
 
     try {
       const res = await api.post(`/api/questions/${currentQ.id}/submit`, {
         code: userCode,
         language: lang,
       });
-      setRunResults(res.data);
-      if (res.data?.status === 'ACCEPTED') {
-        confetti({ particleCount: 70, spread: 80, origin: { y: 0.6 } });
+      if (res.success) {
+        setSubmissionFeedback({ submitted: true });
+        setSubmittedQuestions((prev) => new Set(prev).add(currentQ.id));
       }
     } catch (err: any) {
-      setRunResults({ error: err.message });
+      setSubmissionFeedback({ error: err.message });
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const isQuestionAttempted = (q: Question, idx: number): boolean => {
+    // 1. If officially submitted, it is attempted
+    if (
+      submittedQuestions.has(q.id) ||
+      (q.submissions && q.submissions.length > 0) ||
+      (idx === currentIndex && submissionFeedback?.submitted)
+    ) {
+      return true;
+    }
+
+    // 2. Check the code for this question
+    const currentCode = idx === currentIndex ? code : q.savedState?.code;
+    if (!currentCode) {
+      return false;
+    }
+
+    const normalize = (str?: string | null) => (str || '').replace(/\r\n/g, '\n').trim();
+    const normalizedCurrent = normalize(currentCode);
+
+    if (normalizedCurrent.length === 0) {
+      return false;
+    }
+
+    const initial = normalize(q.initialCode);
+
+    // 3. If there is initial starter code, it is only attempted if modified
+    if (initial.length > 0) {
+      return normalizedCurrent !== initial;
+    }
+
+    // 4. If there was no initial starter code, any non-empty code is an attempt
+    return normalizedCurrent.length > 0;
+  };
+
+  const [submissionComplete, setSubmissionComplete] = useState(false);
 
   const handleFinalSubmit = async () => {
     if (!round) return;
     setIsFinalSubmitting(true);
     try {
       if (currentQ) {
-        await api.post(`/api/questions/${currentQ.id}/save`, { code }).catch(() => {});
-        await api.delete('/api/team/problem-lock', { data: { questionId: currentQ.id } }).catch(() => {});
+        await api.post(`/api/questions/${currentQ.id}/save`, { code, language }).catch(() => {});
       }
       const res = await api.post(`/api/rounds/${round.id}/finalize`);
       if (res.success) {
-        navigate('/dashboard');
+        setSubmissionComplete(true);
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 2200);
       }
     } catch (err: any) {
       alert(err.message || 'Failed to finalize round');
@@ -199,15 +220,7 @@ export const Round2: React.FC = () => {
   const unsubmittedIndices: number[] = [];
 
   questions.forEach((q, idx) => {
-    let isAnswered = false;
-    if (idx === currentIndex) {
-      isAnswered = Boolean(code && code.trim().length > 0);
-    } else {
-      isAnswered = Boolean(
-        (q.savedState?.code && q.savedState.code.trim().length > 0) ||
-        (q.submissions && q.submissions.length > 0)
-      );
-    }
+    const isAnswered = isQuestionAttempted(q, idx);
 
     if (isAnswered) {
       submittedIndices.push(idx + 1);
@@ -216,7 +229,41 @@ export const Round2: React.FC = () => {
     }
   });
 
+  if (submissionComplete) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center px-4">
+        <GlassCard glow className="max-w-xl w-full p-8 text-center space-y-6 border border-emerald-500/40">
+          <div className="mx-auto w-16 h-16 rounded-2xl flex items-center justify-center bg-emerald-950/60 border border-emerald-500/40">
+            <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+          </div>
+          <div className="space-y-2">
+            <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400">
+              Submission Confirmed
+            </span>
+            <h2 className="text-2xl font-black text-white">
+              Round 2 Submitted Successfully
+            </h2>
+            <p className="text-sm font-medium text-slate-200">
+              This round is now locked and cannot be reopened.
+            </p>
+            <p className="text-xs text-slate-400 pt-2">
+              Redirecting you to the dashboard...
+            </p>
+          </div>
+          <div className="pt-4 border-t border-purple-500/15 flex items-center justify-center">
+            <Link to="/dashboard">
+              <GradientButton size="md" variant="primary" leftIcon={<ArrowLeft className="w-4 h-4" />}>
+                Go to Dashboard
+              </GradientButton>
+            </Link>
+          </div>
+        </GlassCard>
+      </div>
+    );
+  }
+
   if (accessError) {
+    const isLocked = accessError.code === 'ROUND_LOCKED' || accessError.code === 'ROUND_SUBMITTED';
     const isNotStarted = accessError.code === 'ROUND_NOT_STARTED';
     const isCompleted = accessError.code === 'ROUND_COMPLETED';
 
@@ -224,7 +271,9 @@ export const Round2: React.FC = () => {
       <div className="min-h-[80vh] flex items-center justify-center px-4">
         <GlassCard glow className="max-w-xl w-full p-8 text-center space-y-6 border border-purple-500/30">
           <div className="mx-auto w-16 h-16 rounded-2xl flex items-center justify-center bg-purple-950/60 border border-purple-500/30">
-            {isNotStarted ? (
+            {isLocked ? (
+              <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+            ) : isNotStarted ? (
               <Clock className="w-8 h-8 text-purple-400" />
             ) : isCompleted ? (
               <CheckCircle2 className="w-8 h-8 text-slate-400" />
@@ -238,14 +287,18 @@ export const Round2: React.FC = () => {
               Round 2 • Debugging & Code Reconstruction
             </span>
             <h2 className="text-2xl font-black text-white">
-              {isNotStarted
+              {isLocked
+                ? 'Round 2 Submitted & Locked'
+                : isNotStarted
                 ? 'Round 2 Has Not Started Yet'
                 : isCompleted
                 ? 'Round 2 Has Concluded'
                 : 'Arena Unavailable'}
             </h2>
             <p className="text-xs text-slate-300 leading-relaxed max-w-md mx-auto">
-              {accessError.message}
+              {isLocked
+                ? 'This round has already been submitted and is locked. You cannot reopen or view questions from this round.'
+                : accessError.message}
             </p>
           </div>
 
@@ -263,7 +316,23 @@ export const Round2: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      {round && <AntiCheatGuard contestId={round.contestId} roundId={round.id} />}
+      {round && (
+        <AntiCheatGuard
+          contestId={round.contestId}
+          roundId={round.id}
+          questionId={currentQ?.id}
+          initialExitCount={(round as any).fullscreenExitCount || 0}
+          onBeforeFullscreenExit={async () => {
+            if (currentQ) {
+              await api.post(`/api/questions/${currentQ.id}/save`, { code, language }).catch(() => {});
+            }
+          }}
+          onAutoSubmit={() => {
+            setSubmissionComplete(true);
+            setTimeout(() => navigate('/dashboard'), 2500);
+          }}
+        />
+      )}
 
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#0a0c20] p-4 rounded-2xl border border-purple-500/20 shadow-xl">
@@ -322,23 +391,13 @@ export const Round2: React.FC = () => {
                 {currentQ.description}
               </div>
 
-              {currentQ.expectedOutput && (
-                <div className="bg-[#12142f] p-3.5 rounded-xl border border-indigo-500/20 text-xs text-indigo-300 font-mono">
-                  <span className="font-bold block text-slate-400 uppercase text-[10px] mb-1">
-                    Expected Behavior / Target Output:
-                  </span>
-                  {currentQ.expectedOutput}
-                </div>
-              )}
-
-              {/* Sample Test Results Drawer */}
+              {/* Sample Test Results Drawer for Run Code */}
               {runResults && (
                 <div className="space-y-3 pt-4 border-t border-purple-500/15">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-mono font-bold uppercase tracking-wider text-purple-300">
-                      Execution Output:
+                      Sample Test Output:
                     </span>
-                    <StatusBadge status={runResults.status || runResults.overallStatus || 'EXECUTED'} size="sm" />
                   </div>
 
                   {runResults.testResults?.map((t: any, i: number) => (
@@ -351,12 +410,11 @@ export const Round2: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-bold">Test Case #{i + 1}</span>
+                        <span className="font-bold">Sample Case #{i + 1}</span>
                         <span>{t.runtimeMs}ms</span>
                       </div>
                       {t.input && <div>Input: {t.input}</div>}
-                      {t.expectedOutput && <div>Expected: {t.expectedOutput}</div>}
-                      {t.actualOutput && <div>Actual: {t.actualOutput}</div>}
+                      {t.actualOutput && <div>Output: {t.actualOutput}</div>}
                     </div>
                   ))}
 
@@ -367,6 +425,25 @@ export const Round2: React.FC = () => {
                   )}
                 </div>
               )}
+
+              {/* Official Submission Result Box */}
+              {submissionFeedback && (
+                <div className="pt-4 border-t border-purple-500/15">
+                  <div className="p-3.5 rounded-2xl border text-xs bg-[#101228] border-purple-500/30 text-purple-200">
+                    {submissionFeedback.submitted && (
+                      <div className="flex items-center gap-2 text-emerald-400 font-medium">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        <span>Answer submitted successfully</span>
+                      </div>
+                    )}
+                    {submissionFeedback.error && (
+                      <p className="text-rose-300 font-mono text-[11px] bg-rose-950/40 p-2 rounded">
+                        {submissionFeedback.error}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </GlassCard>
           )}
 
@@ -374,18 +451,21 @@ export const Round2: React.FC = () => {
             questions={questions}
             currentQuestionIndex={currentIndex}
             onSelectQuestion={handleSelectQuestion}
+            isAttempted={isQuestionAttempted}
           />
         </div>
 
         {/* Right Column: Monaco Code Editor */}
         <div className="lg:col-span-2 h-[650px]">
           <CodeEditor
+            key={currentQ?.id}
             initialCode={code}
+            language={language}
+            onLanguageChange={(newLang) => setLanguage(newLang)}
             onRun={handleRun}
             onSubmit={handleSubmit}
             isRunning={isRunning}
             isSubmitting={isSubmitting}
-            lockWarning={lockError}
             onChange={(val) => setCode(val)}
           />
         </div>

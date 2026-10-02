@@ -48,7 +48,7 @@ export const Footer: React.FC = () => {
               <li><span className="text-purple-300 font-semibold">Round 1:</span> MCQs & Code Logic</li>
               <li><span className="text-purple-300 font-semibold">Round 2:</span> Jumbled Code & Debugging</li>
               <li><span className="text-purple-300 font-semibold">Round 3:</span> Grand Competitive Finale</li>
-              <li className="pt-2 text-[11px] text-slate-500">Real-time team multiplayer locks active</li>
+              <li className="pt-2 text-[11px] text-slate-500">Real-time anti-cheat security active</li>
             </ul>
           </div>
 

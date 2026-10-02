@@ -1,6 +1,6 @@
 import React from 'react';
 import { GlassCard } from '../components/ui/GlassCard.js';
-import { Terminal, Target, Compass, Award, Code2, Users, Cpu, ShieldCheck } from 'lucide-react';
+import { Terminal, Target, Compass, Award, Code2, User, Cpu, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { GradientButton } from '../components/ui/GradientButton.js';
 
@@ -35,11 +35,11 @@ export const About: React.FC = () => {
 
         <GlassCard className="space-y-4">
           <div className="w-12 h-12 rounded-xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
-            <Users className="w-6 h-6" />
+            <User className="w-6 h-6" />
           </div>
           <h3 className="text-xl font-bold text-white">Who Can Compete?</h3>
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-            Any undergraduate or postgraduate student enrolled in an accredited collegiate institution is eligible. Participants can choose to enter as an <strong>Individual Soloist</strong> or unite with a peer to form a <strong>2-Person Team</strong>.
+            Any undergraduate or postgraduate student enrolled in an accredited collegiate institution is eligible. Participants enter as an <strong>Individual Competitor</strong> to test their skills against top collegiate programmers.
           </p>
         </GlassCard>
 
@@ -47,9 +47,9 @@ export const About: React.FC = () => {
           <div className="w-12 h-12 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
             <Cpu className="w-6 h-6" />
           </div>
-          <h3 className="text-xl font-bold text-white">Real-Time Multiplayer Locking</h3>
+          <h3 className="text-xl font-bold text-white">Real-Time Anti-Cheat Guard</h3>
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-            In Team mode, both teammates can be online concurrently. However, CODEBREAK’s atomic server engine guarantees that only one member can work on a given problem at a time. The problem locks instantly for the teammate, promoting strategic task delegation and communication.
+            CODEBREAK features a browser-level security environment with strict fullscreen enforcement, window blur detection, and automated audit logging, ensuring a fair and transparent contest for all participants.
           </p>
         </GlassCard>
 

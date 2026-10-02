@@ -4,6 +4,8 @@
   "private": true,
   "description": "CODEBREAK — College Programming Contest Platform",
   "scripts": {
+    "db:start": "powershell -ExecutionPolicy Bypass -File ./scripts/start-db.ps1",
+    "db:stop": "powershell -ExecutionPolicy Bypass -File ./scripts/stop-db.ps1",
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",
     "build:server": "npm --prefix server run build",

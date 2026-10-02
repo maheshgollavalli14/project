@@ -11,7 +11,6 @@ router.use(requireRole([Role.ADMIN]));
 
 router.get('/dashboard', AdminController.getDashboardMetrics);
 router.get('/participants', AdminController.getParticipants);
-router.get('/teams', AdminController.getTeams);
 router.get('/questions', AdminController.getQuestions);
 router.post('/questions', AdminController.createQuestion);
 router.post('/questions/seed-template', AdminController.seedRoundTemplate);

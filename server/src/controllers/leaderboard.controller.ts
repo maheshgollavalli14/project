@@ -5,7 +5,7 @@ import { ScoringService } from '../services/scoring.service.js';
 export class LeaderboardController {
   static async getLeaderboard(req: Request, res: Response, next: NextFunction) {
     try {
-      const { contestId, roundId, type } = req.query;
+      const { contestId, roundId } = req.query;
 
       // Find active contest if not specified
       let cId = contestId as string;
@@ -21,11 +21,9 @@ export class LeaderboardController {
         return;
       }
 
-      const isTeam = type === 'TEAM';
       const leaderboard = await ScoringService.getLeaderboard(
         cId,
-        roundId as string | undefined,
-        isTeam
+        roundId as string | undefined
       );
 
       // Check if leaderboard is currently frozen
@@ -39,7 +37,7 @@ export class LeaderboardController {
         data: {
           contestId: cId,
           isFrozen,
-          type: isTeam ? 'TEAM' : 'INDIVIDUAL',
+          type: 'INDIVIDUAL',
           entries: leaderboard,
         },
       });

@@ -25,7 +25,6 @@ import { Round3 } from '../pages/contest/Round3.js';
 // Admin Pages
 import { AdminDashboard } from '../pages/admin/AdminDashboard.js';
 import { AdminParticipants } from '../pages/admin/AdminParticipants.js';
-import { AdminTeams } from '../pages/admin/AdminTeams.js';
 import { AdminQuestions } from '../pages/admin/AdminQuestions.js';
 import { AdminSubmissions } from '../pages/admin/AdminSubmissions.js';
 import { AdminQualification } from '../pages/admin/AdminQualification.js';
@@ -74,7 +73,6 @@ export const AppRouter: React.FC = () => {
           <Route element={<AdminLayout />}>
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/participants" element={<AdminParticipants />} />
-            <Route path="/admin/teams" element={<AdminTeams />} />
             <Route path="/admin/questions" element={<AdminQuestions />} />
             <Route path="/admin/submissions" element={<AdminSubmissions />} />
             <Route path="/admin/qualification" element={<AdminQualification />} />

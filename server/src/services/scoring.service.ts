@@ -3,21 +3,20 @@ import { logger } from '../utils/logger.js';
 
 export class ScoringService {
   /**
-   * Recalculates and updates the score record for a user or team in a given round
+   * Recalculates and updates the score record for a user in a given round
    */
   static async updateRoundScore(
     contestId: string,
     roundId: string,
-    userId?: string | null,
-    teamId?: string | null
+    userId: string
   ) {
-    if (!userId && !teamId) return null;
+    if (!userId) return null;
 
-    // Get all accepted/best submissions for this user/team in this round
+    // Get all submissions for this user in this round
     const submissions = await prisma.submission.findMany({
       where: {
         roundId,
-        ...(teamId ? { teamId } : { userId: userId! }),
+        userId,
       },
       include: {
         question: true,
@@ -74,9 +73,7 @@ export class ScoringService {
 
     // Upsert Score record
     const score = await prisma.score.upsert({
-      where: teamId
-        ? { contestId_roundId_teamId: { contestId, roundId, teamId } }
-        : { contestId_roundId_userId: { contestId, roundId, userId: userId! } },
+      where: { contestId_roundId_userId: { contestId, roundId, userId } },
       update: {
         points: totalPoints,
         solvedCount,
@@ -85,8 +82,7 @@ export class ScoringService {
       create: {
         contestId,
         roundId,
-        userId: userId || null,
-        teamId: teamId || null,
+        userId,
         points: totalPoints,
         solvedCount,
         penaltySeconds,
@@ -96,7 +92,6 @@ export class ScoringService {
     logger.contest('Score updated', 'ScoringService', {
       roundId,
       userId,
-      teamId,
       totalPoints,
       solvedCount,
       penaltySeconds,
@@ -108,30 +103,16 @@ export class ScoringService {
   /**
    * Get leaderboard rankings based on configurable tie-breaking
    */
-  static async getLeaderboard(contestId: string, roundId?: string, isTeamTab = false) {
+  static async getLeaderboard(contestId: string, roundId?: string) {
     const scores = await prisma.score.findMany({
       where: {
         contestId,
         ...(roundId ? { roundId } : {}),
-        ...(isTeamTab ? { teamId: { not: null } } : { teamId: null, userId: { not: null } }),
       },
       include: {
         user: {
           include: {
             profile: true,
-          },
-        },
-        team: {
-          include: {
-            members: {
-              include: {
-                user: {
-                  include: {
-                    profile: true,
-                  },
-                },
-              },
-            },
           },
         },
       },
@@ -145,11 +126,11 @@ export class ScoringService {
 
     return scores.map((s, index) => ({
       rank: index + 1,
-      id: isTeamTab ? s.teamId! : s.userId!,
-      name: isTeamTab ? s.team?.name || 'Unnamed Team' : s.user?.profile?.fullName || 'Anonymous',
-      code: isTeamTab ? s.team?.teamId || 'TEAM' : s.user?.profile?.participantId || 'IND',
-      college: isTeamTab ? s.team?.college || 'College' : s.user?.profile?.college || 'College',
-      type: isTeamTab ? 'TEAM' : 'INDIVIDUAL',
+      id: s.userId,
+      name: s.user?.profile?.fullName || 'Anonymous',
+      code: s.user?.profile?.participantId || 'IND',
+      college: s.user?.profile?.college || 'College',
+      type: 'INDIVIDUAL',
       solvedCount: s.solvedCount,
       points: s.points,
       penaltySeconds: s.penaltySeconds,

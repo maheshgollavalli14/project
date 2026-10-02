@@ -42,22 +42,20 @@ export const Submissions: React.FC = () => {
                 <th className="py-3.5 px-6">Timestamp</th>
                 <th className="py-3.5 px-6">Problem</th>
                 <th className="py-3.5 px-6">Language</th>
-                <th className="py-3.5 px-6">Verdict</th>
-                <th className="py-3.5 px-6 text-center">Tests Passed</th>
-                <th className="py-3.5 px-6 text-right">Points</th>
+                <th className="py-3.5 px-6">Status</th>
                 <th className="py-3.5 px-6 text-right">Runtime</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-purple-500/10">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                  <td colSpan={5} className="py-12 text-center text-slate-400">
                     Loading submission records...
                   </td>
                 </tr>
               ) : submissions.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                  <td colSpan={5} className="py-12 text-center text-slate-400">
                     No submissions recorded yet. Enter a round to submit your first solution.
                   </td>
                 </tr>
@@ -75,12 +73,6 @@ export const Submissions: React.FC = () => {
                     </td>
                     <td className="py-4 px-6">
                       <StatusBadge status={s.status} size="sm" />
-                    </td>
-                    <td className="py-4 px-6 text-center font-mono font-semibold text-slate-300">
-                      {s.passedTests} / {s.totalTests}
-                    </td>
-                    <td className="py-4 px-6 text-right font-mono font-bold text-white">
-                      {s.score}
                     </td>
                     <td className="py-4 px-6 text-right font-mono text-slate-400">
                       {s.runtimeMs ? `${s.runtimeMs}ms` : '—'}

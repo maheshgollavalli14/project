@@ -1,51 +1,46 @@
 import React from 'react';
 import { GlassCard } from '../components/ui/GlassCard.js';
-import { Shield, BookOpen, AlertCircle, Clock, Users, Lock, Award, Terminal } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { GradientButton } from '../components/ui/GradientButton.js';
+import { Shield, Clock, Award, User, Maximize2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export const Rules: React.FC = () => {
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-      {/* Page Header */}
-      <div className="text-center max-w-3xl mx-auto mb-16">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-purple-900/30 border border-purple-500/30 text-purple-300 text-xs font-mono mb-4">
-          <BookOpen className="w-3.5 h-3.5 text-purple-400" />
-          <span>Official Contest Regulations</span>
-        </div>
-        <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight mb-4">
-          CODEBREAK Rulebook
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      {/* Header */}
+      <div className="text-center max-w-2xl mx-auto mb-12">
+        <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight mb-4">
+          Official Rules & Regulations
         </h1>
-        <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+        <p className="text-slate-300 text-sm leading-relaxed">
           Please review the official contest guidelines, integrity protocols, and tie-breaking policies before participating.
         </p>
       </div>
 
       <div className="space-y-8">
-        {/* Section 1: Eligibility & Teams */}
+        {/* Section 1: Eligibility & Individual Participation */}
         <GlassCard className="p-8 space-y-4">
           <div className="flex items-center gap-3 text-purple-400 font-bold text-lg border-b border-purple-500/15 pb-3">
-            <Users className="w-5 h-5" />
-            <span>1. Eligibility & Team Composition</span>
+            <User className="w-5 h-5" />
+            <span>1. Eligibility & Individual Participation</span>
           </div>
           <ul className="space-y-2 text-xs sm:text-sm text-slate-300 list-disc list-inside leading-relaxed">
             <li>Participants must be active undergraduate or postgraduate college students with valid student ID.</li>
-            <li><strong>Individual Mode:</strong> A single participant competes independently.</li>
-            <li><strong>Team Mode:</strong> Must contain <strong>EXACTLY TWO (2)</strong> registered members. A team with fewer or more than two members will not be permitted to enter the arena.</li>
-            <li>Each participant can only be registered under one account and belong to at most one team.</li>
+            <li><strong>Individual Participation:</strong> All contestants compete independently on an individual track.</li>
+            <li>Each participant can only be registered under one verified account. Multiple logins are strictly monitored and logged.</li>
           </ul>
         </GlassCard>
 
-        {/* Section 2: Problem Locking */}
+        {/* Section 2: Environment & Fullscreen Policy */}
         <GlassCard className="p-8 space-y-4">
           <div className="flex items-center gap-3 text-indigo-400 font-bold text-lg border-b border-purple-500/15 pb-3">
-            <Lock className="w-5 h-5" />
-            <span>2. Real-Time Problem Locking Policy</span>
+            <Maximize2 className="w-5 h-5" />
+            <span>2. Arena Environment & Fullscreen Policy</span>
           </div>
           <ul className="space-y-2 text-xs sm:text-sm text-slate-300 list-disc list-inside leading-relaxed">
-            <li>For teams, only <strong>ONE team member</strong> may actively edit or submit code for a given problem at any single point in time.</li>
-            <li>When Member A opens a problem, the server acquires a lock. The problem instantly appears in <strong>LOCKED (Read-Only)</strong> mode for Member B.</li>
-            <li>Lock heartbeat pings are transmitted every 15 seconds. If a member closes their browser tab or navigates away, the lock expires automatically after 45 seconds, returning the problem to AVAILABLE status.</li>
+            <li>The contest arena operates in secured browser fullscreen mode.</li>
+            <li>Exiting fullscreen, switching tabs, or losing window focus is detected in real time and recorded in the server-side integrity log.</li>
+            <li>Clipboard operations (copy, paste, cut) inside the code editor are restricted to ensure authentic problem solving.</li>
           </ul>
         </GlassCard>
 
@@ -57,7 +52,7 @@ export const Rules: React.FC = () => {
           </div>
           <ul className="space-y-2 text-xs sm:text-sm text-slate-300 list-disc list-inside leading-relaxed">
             <li>All round countdown timers are calculated authoritatively on the backend server (`endTime - currentServerTime`). Local computer clock adjustments will not affect round timing.</li>
-            <li>When the official round time expires, the round status changes to `COMPLETED`. All active problem locks are immediately released, and any further submission attempts are strictly rejected.</li>
+            <li>When the official round time expires, the round status changes to `COMPLETED`, and any further submission attempts are strictly rejected.</li>
             <li>The system periodically autosaves latest draft code to prevent data loss.</li>
           </ul>
         </GlassCard>

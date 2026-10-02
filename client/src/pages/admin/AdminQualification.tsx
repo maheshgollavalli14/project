@@ -5,8 +5,6 @@ import { StatusBadge } from '../../components/ui/StatusBadge.js';
 import { GradientButton } from '../../components/ui/GradientButton.js';
 import {
   Award,
-  Users,
-  UserCheck,
   Zap,
   Sparkles,
   CheckCircle2,
@@ -19,7 +17,6 @@ export const AdminQualification: React.FC = () => {
   const [contest, setContest] = useState<any>(null);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [cutoffCount, setCutoffCount] = useState<number>(10);
-  const [activeTab, setActiveTab] = useState<'individual' | 'team'>('individual');
   const [isLoading, setIsLoading] = useState(true);
   const [isCalculating, setIsCalculating] = useState(false);
   const [lastCalculationResult, setLastCalculationResult] = useState<any>(null);
@@ -36,7 +33,9 @@ export const AdminQualification: React.FC = () => {
       }
 
       const lbRes = await api.get('/api/leaderboard');
-      if (lbRes.success && lbRes.data?.leaderboard) {
+      if (lbRes.success && lbRes.data?.entries) {
+        setLeaderboard(lbRes.data.entries);
+      } else if (lbRes.success && lbRes.data?.leaderboard) {
         setLeaderboard(lbRes.data.leaderboard);
       }
     } catch (err) {
@@ -56,7 +55,7 @@ export const AdminQualification: React.FC = () => {
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to promote the Top ${cutoffCount} participants/teams to Round 3?`)) {
+    if (!window.confirm(`Are you sure you want to promote the Top ${cutoffCount} individual participants to Round 3?`)) {
       return;
     }
 
@@ -77,10 +76,6 @@ export const AdminQualification: React.FC = () => {
       setIsCalculating(false);
     }
   };
-
-  const filteredLeaderboard = leaderboard.filter((item) =>
-    activeTab === 'team' ? !!item.team : !item.team
-  );
 
   return (
     <div className="space-y-6">
@@ -133,7 +128,7 @@ export const AdminQualification: React.FC = () => {
                   onChange={(e) => setCutoffCount(parseInt(e.target.value) || 1)}
                   className="w-28 px-3 py-2 bg-[#0a0c1b] border border-purple-500/30 rounded-lg text-sm text-white font-mono focus:outline-none focus:border-purple-400"
                 />
-                <span className="text-xs text-slate-400">qualifiers per track</span>
+                <span className="text-xs text-slate-400">individual qualifiers</span>
               </div>
             </div>
 
@@ -155,8 +150,7 @@ export const AdminQualification: React.FC = () => {
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
               <div>
                 Cutoff updated to Top <strong>{lastCalculationResult.cutoffCount}</strong>! Promoted{' '}
-                <strong>{lastCalculationResult.qualifiedIndividualsCount}</strong> individual(s) and{' '}
-                <strong>{lastCalculationResult.qualifiedTeamsCount}</strong> team(s).
+                <strong>{lastCalculationResult.qualifiedIndividualsCount}</strong> individual participant(s).
               </div>
             </div>
           )}
@@ -194,33 +188,6 @@ export const AdminQualification: React.FC = () => {
         </GlassCard>
       </div>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-3 border-b border-purple-500/20 pb-2">
-        <button
-          onClick={() => setActiveTab('individual')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
-            activeTab === 'individual'
-              ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(139,92,246,0.3)]'
-              : 'text-slate-400 hover:text-white hover:bg-white/5'
-          }`}
-        >
-          <UserCheck className="w-4 h-4" />
-          Individual Track ({leaderboard.filter((i) => !i.team).length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('team')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
-            activeTab === 'team'
-              ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(139,92,246,0.3)]'
-              : 'text-slate-400 hover:text-white hover:bg-white/5'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          2-Member Teams Track ({leaderboard.filter((i) => !!i.team).length})
-        </button>
-      </div>
-
       {/* Standings Table */}
       <GlassCard className="overflow-hidden p-0 border border-purple-500/20">
         <div className="overflow-x-auto">
@@ -228,7 +195,7 @@ export const AdminQualification: React.FC = () => {
             <thead>
               <tr className="border-b border-purple-500/20 bg-purple-950/20 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 <th className="py-3 px-4">Rank</th>
-                <th className="py-3 px-4">{activeTab === 'team' ? 'Team' : 'Participant'}</th>
+                <th className="py-3 px-4">Participant</th>
                 <th className="py-3 px-4">Affiliation / College</th>
                 <th className="py-3 px-4">Solved</th>
                 <th className="py-3 px-4">Penalty</th>
@@ -244,15 +211,15 @@ export const AdminQualification: React.FC = () => {
                     Loading current standings...
                   </td>
                 </tr>
-              ) : filteredLeaderboard.length === 0 ? (
+              ) : leaderboard.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-400">
-                    No participants or submissions found in this category yet.
+                    No participants or submissions found yet.
                   </td>
                 </tr>
               ) : (
-                filteredLeaderboard.map((entry, idx) => {
-                  const rank = idx + 1;
+                leaderboard.map((entry, idx) => {
+                  const rank = entry.rank || idx + 1;
                   const isCutoff = rank <= (contest?.qualificationCutoff || cutoffCount);
                   const isQualified = entry.isQualified ?? isCutoff;
 
@@ -281,15 +248,15 @@ export const AdminQualification: React.FC = () => {
 
                       <td className="py-3 px-4">
                         <div className="font-semibold text-white">
-                          {entry.team?.name || entry.user?.profile?.fullName || entry.user?.email || 'Participant'}
+                          {entry.name || entry.user?.profile?.fullName || entry.user?.email || 'Participant'}
                         </div>
                         <div className="text-[10px] text-slate-400 font-mono">
-                          {entry.team?.teamId || entry.user?.profile?.participantId || entry.user?.email}
+                          {entry.code || entry.user?.profile?.participantId || entry.user?.email}
                         </div>
                       </td>
 
                       <td className="py-3 px-4 text-slate-300">
-                        {entry.user?.profile?.college || 'National Institute of Technology'}
+                        {entry.college || entry.user?.profile?.college || 'University'}
                       </td>
 
                       <td className="py-3 px-4 font-mono font-semibold text-purple-300">

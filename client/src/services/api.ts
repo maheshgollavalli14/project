@@ -11,6 +11,11 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestOpti
     'Content-Type': 'application/json',
   };
 
+  const token = typeof window !== 'undefined' ? localStorage.getItem('cb_token') : null;
+  if (token) {
+    defaultHeaders['Authorization'] = `Bearer ${token}`;
+  }
+
   const config: RequestInit = {
     ...customConfig,
     headers: {

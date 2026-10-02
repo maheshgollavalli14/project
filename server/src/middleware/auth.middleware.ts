@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifyToken, TokenPayload, COOKIE_NAME } from '../utils/jwt.js';
+import { verifyToken, TokenPayload, COOKIE_NAME, clearAuthCookie } from '../utils/jwt.js';
 import { prisma } from '../config/db.js';
 import { Role } from '@prisma/client';
 import { logger } from '../utils/logger.js';
@@ -39,10 +39,43 @@ export async function authenticate(req: AuthenticatedRequest, res: Response, nex
     return;
   }
 
+  // If token has a sessionId, verify the session is active in database
+  if (payload.sessionId) {
+    const session = await prisma.userSession.findUnique({
+      where: { id: payload.sessionId },
+    });
+
+    if (!session || !session.isActive || session.revokedAt || session.expiresAt < new Date()) {
+      clearAuthCookie(res);
+      res.status(401).json({
+        success: false,
+        message: 'Session has expired or was terminated. Please log in again.',
+        code: 'SESSION_INVALID',
+      });
+      return;
+    }
+
+    // Refresh lastActivityAt if more than 60s
+    if (Date.now() - session.lastActivityAt.getTime() > 60000) {
+      prisma.userSession.update({
+        where: { id: session.id },
+        data: { lastActivityAt: new Date() },
+      }).catch(() => {});
+    }
+  } else if (payload.role === Role.PARTICIPANT || (payload.email !== (process.env.ADMIN_EMAIL || 'admin@codebreak.dev') && payload.email !== 'single_session_admin@codebreak.dev')) {
+    clearAuthCookie(res);
+    res.status(401).json({
+      success: false,
+      message: 'Session has expired or was terminated. Please log in again.',
+      code: 'SESSION_INVALID',
+    });
+    return;
+  }
+
   // Verify user still exists in database
   const user = await prisma.user.findUnique({
     where: { id: payload.userId },
-    include: { profile: true, teamMember: true },
+    include: { profile: true },
   });
 
   if (!user || !user.isActive) {
@@ -58,7 +91,7 @@ export async function authenticate(req: AuthenticatedRequest, res: Response, nex
     userId: user.id,
     email: user.email,
     role: user.role,
-    teamId: user.teamMember?.teamId || null,
+    sessionId: payload.sessionId,
     fullName: user.profile?.fullName,
     participantId: user.profile?.participantId,
     college: user.profile?.college,
@@ -86,9 +119,22 @@ export async function optionalAuthenticate(req: AuthenticatedRequest, res: Respo
   try {
     const payload = verifyToken(token);
     if (payload) {
+      if (payload.sessionId) {
+        const session = await prisma.userSession.findUnique({
+          where: { id: payload.sessionId },
+        });
+        if (!session || !session.isActive || session.revokedAt || session.expiresAt < new Date()) {
+          next();
+          return;
+        }
+      } else if (payload.role === Role.PARTICIPANT || (payload.email !== (process.env.ADMIN_EMAIL || 'admin@codebreak.dev') && payload.email !== 'single_session_admin@codebreak.dev')) {
+        next();
+        return;
+      }
+
       const user = await prisma.user.findUnique({
         where: { id: payload.userId },
-        include: { profile: true, teamMember: true },
+        include: { profile: true },
       });
 
       if (user && user.isActive) {
@@ -96,7 +142,7 @@ export async function optionalAuthenticate(req: AuthenticatedRequest, res: Respo
           userId: user.id,
           email: user.email,
           role: user.role,
-          teamId: user.teamMember?.teamId || null,
+          sessionId: payload.sessionId,
           fullName: user.profile?.fullName,
           participantId: user.profile?.participantId,
           college: user.profile?.college,

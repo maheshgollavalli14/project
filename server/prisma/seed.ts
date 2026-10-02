@@ -1,4 +1,4 @@
-import { PrismaClient, Role, ParticipationType, ContestStatus, RoundStatus, RoundType, QuestionType, Difficulty, SubmissionStatus, Severity, ViolationType, PaymentStatus, TeamMemberRole } from '@prisma/client';
+import { PrismaClient, Role, ContestStatus, RoundStatus, RoundType, QuestionType, Difficulty, SubmissionStatus, Severity, ViolationType, PaymentStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -13,14 +13,11 @@ async function main() {
   await prisma.score.deleteMany();
   await prisma.savedCode.deleteMany();
   await prisma.submission.deleteMany();
-  await prisma.problemLock.deleteMany();
   await prisma.testCase.deleteMany();
   await prisma.questionOption.deleteMany();
   await prisma.question.deleteMany();
   await prisma.contestRound.deleteMany();
   await prisma.contest.deleteMany();
-  await prisma.teamMember.deleteMany();
-  await prisma.team.deleteMany();
   await prisma.profile.deleteMany();
   await prisma.user.deleteMany();
   await prisma.contestSetting.deleteMany();
@@ -40,7 +37,6 @@ async function main() {
           college: 'CODEBREAK Technical Committee',
           phone: '+91 9876543210',
           participantId: 'CB-ADM-001',
-          participation: ParticipationType.INDIVIDUAL,
         },
       },
     },
@@ -59,7 +55,6 @@ async function main() {
           college: 'Massachusetts Institute of Technology',
           phone: '+91 9123456780',
           participantId: 'CB-IND-101',
-          participation: ParticipationType.INDIVIDUAL,
         },
       },
     },
@@ -76,7 +71,6 @@ async function main() {
           college: 'IIT Delhi',
           phone: '+91 9123456781',
           participantId: 'CB-IND-102',
-          participation: ParticipationType.INDIVIDUAL,
         },
       },
     },
@@ -93,126 +87,60 @@ async function main() {
           college: 'Stanford University',
           phone: '+91 9123456782',
           participantId: 'CB-IND-103',
-          participation: ParticipationType.INDIVIDUAL,
         },
       },
     },
   });
 
-  // 3. Create Teams (Each team must have exactly 2 members)
-  // Team 1: Binary Beasts
-  const team1 = await prisma.team.create({
-    data: {
-      name: 'Binary Beasts',
-      teamId: 'CB-TEAM-201',
-      college: 'National Institute of Technology, Trichy',
-      inviteCode: 'BB-9482',
-    },
-  });
-
-  const t1m1 = await prisma.user.create({
+  const ind4 = await prisma.user.create({
     data: {
       email: 'rohan.gupta@nitt.edu',
       passwordHash,
-      role: Role.TEAM_MEMBER,
+      role: Role.PARTICIPANT,
       profile: {
         create: {
           fullName: 'Rohan Gupta',
           college: 'NIT Trichy',
           phone: '+91 9887766551',
-          participantId: 'CB-TM-201A',
-          participation: ParticipationType.TEAM,
-        },
-      },
-      teamMember: {
-        create: {
-          teamId: team1.id,
-          roleInTeam: TeamMemberRole.LEADER,
+          participantId: 'CB-IND-104',
         },
       },
     },
   });
 
-  const t1m2 = await prisma.user.create({
+  const ind5 = await prisma.user.create({
     data: {
       email: 'ananya.deshmukh@nitt.edu',
       passwordHash,
-      role: Role.TEAM_MEMBER,
+      role: Role.PARTICIPANT,
       profile: {
         create: {
           fullName: 'Ananya Deshmukh',
           college: 'NIT Trichy',
           phone: '+91 9887766552',
-          participantId: 'CB-TM-201B',
-          participation: ParticipationType.TEAM,
-        },
-      },
-      teamMember: {
-        create: {
-          teamId: team1.id,
-          roleInTeam: TeamMemberRole.MEMBER,
+          participantId: 'CB-IND-105',
         },
       },
     },
   });
 
-  // Team 2: Cyber Knights
-  const team2 = await prisma.team.create({
-    data: {
-      name: 'Cyber Knights',
-      teamId: 'CB-TEAM-202',
-      college: 'BITS Pilani',
-      inviteCode: 'CK-5510',
-    },
-  });
-
-  const t2m1 = await prisma.user.create({
+  const ind6 = await prisma.user.create({
     data: {
       email: 'dev.kapoor@pilani.bits-pilani.ac.in',
       passwordHash,
-      role: Role.TEAM_MEMBER,
+      role: Role.PARTICIPANT,
       profile: {
         create: {
           fullName: 'Dev Kapoor',
           college: 'BITS Pilani',
           phone: '+91 9776655441',
-          participantId: 'CB-TM-202A',
-          participation: ParticipationType.TEAM,
-        },
-      },
-      teamMember: {
-        create: {
-          teamId: team2.id,
-          roleInTeam: TeamMemberRole.LEADER,
+          participantId: 'CB-IND-106',
         },
       },
     },
   });
 
-  const t2m2 = await prisma.user.create({
-    data: {
-      email: 'aarav.singh@pilani.bits-pilani.ac.in',
-      passwordHash,
-      role: Role.TEAM_MEMBER,
-      profile: {
-        create: {
-          fullName: 'Aarav Singh',
-          college: 'BITS Pilani',
-          phone: '+91 9776655442',
-          participantId: 'CB-TM-202B',
-          participation: ParticipationType.TEAM,
-        },
-      },
-      teamMember: {
-        create: {
-          teamId: team2.id,
-          roleInTeam: TeamMemberRole.MEMBER,
-        },
-      },
-    },
-  });
-
-  console.log('✓ Individual participants & 2-member teams created');
+  console.log('✓ Individual participants created');
 
   // 4. Create Contest & 3 Rounds
   const now = new Date();
@@ -586,8 +514,9 @@ if __name__ == '__main__':
       { userId: ind1.id, amount: 200, transactionId: 'TXN-982401', status: PaymentStatus.COMPLETED, provider: 'MOCK_GATEWAY' },
       { userId: ind2.id, amount: 200, transactionId: 'TXN-982402', status: PaymentStatus.COMPLETED, provider: 'MOCK_GATEWAY' },
       { userId: ind3.id, amount: 200, transactionId: 'TXN-982403', status: PaymentStatus.COMPLETED, provider: 'MOCK_GATEWAY' },
-      { teamId: team1.id, userId: t1m1.id, amount: 200, transactionId: 'TXN-982404', status: PaymentStatus.COMPLETED, provider: 'MOCK_GATEWAY' },
-      { teamId: team2.id, userId: t2m1.id, amount: 200, transactionId: 'TXN-982405', status: PaymentStatus.COMPLETED, provider: 'MOCK_GATEWAY' },
+      { userId: ind4.id, amount: 200, transactionId: 'TXN-982404', status: PaymentStatus.COMPLETED, provider: 'MOCK_GATEWAY' },
+      { userId: ind5.id, amount: 200, transactionId: 'TXN-982405', status: PaymentStatus.COMPLETED, provider: 'MOCK_GATEWAY' },
+      { userId: ind6.id, amount: 200, transactionId: 'TXN-982406', status: PaymentStatus.COMPLETED, provider: 'MOCK_GATEWAY' },
     ],
   });
 
@@ -611,8 +540,7 @@ if __name__ == '__main__':
   await prisma.submission.create({
     data: {
       questionId: q3.id,
-      userId: t1m1.id,
-      teamId: team1.id,
+      userId: ind4.id,
       roundId: round1.id,
       language: 'python',
       code: q3.initialCode || '',
@@ -631,19 +559,6 @@ if __name__ == '__main__':
       contestId: contest.id,
       roundId: round1.id,
       userId: ind1.id,
-      points: 45, // MCQ 10 + Output 15 + Coding 25 = 50, example 45
-      solvedCount: 3,
-      penaltySeconds: 420,
-      isQualified: true,
-      rank: 1,
-    },
-  });
-
-  await prisma.score.create({
-    data: {
-      contestId: contest.id,
-      roundId: round1.id,
-      teamId: team1.id,
       points: 50,
       solvedCount: 3,
       penaltySeconds: 380,
@@ -656,12 +571,25 @@ if __name__ == '__main__':
     data: {
       contestId: contest.id,
       roundId: round1.id,
-      teamId: team2.id,
+      userId: ind4.id,
+      points: 45,
+      solvedCount: 3,
+      penaltySeconds: 420,
+      isQualified: true,
+      rank: 2,
+    },
+  });
+
+  await prisma.score.create({
+    data: {
+      contestId: contest.id,
+      roundId: round1.id,
+      userId: ind6.id,
       points: 25,
       solvedCount: 1,
       penaltySeconds: 850,
       isQualified: false,
-      rank: 2,
+      rank: 3,
     },
   });
 
@@ -683,7 +611,6 @@ if __name__ == '__main__':
     { key: 'ANTI_CHEAT_FULLSCREEN_MANDATORY', value: 'true', description: 'Require fullscreen for coding rounds' },
     { key: 'MAX_VIOLATIONS_BEFORE_WARNING', value: '3', description: 'Count before participant receives strict warning' },
     { key: 'LEADERBOARD_FROZEN', value: 'false', description: 'Freeze leaderboard during final 15 minutes' },
-    { key: 'LOCK_HEARTBEAT_TIMEOUT_SECONDS', value: '45', description: 'Time before inactive team lock is released' },
     { key: 'TIE_BREAK_STRATEGY', value: 'POINTS_THEN_SOLVED_THEN_TIME', description: 'Leaderboard tie-breaker rules' },
   ];
 
@@ -698,10 +625,12 @@ if __name__ == '__main__':
   console.log('✅ CODEBREAK Database Seeding Complete!');
   console.log('----------------------------------------------------');
   console.log('Admin Account:        admin@codebreak.dev / Admin@CodeBreak2026');
-  console.log('Individual Account:   alex.chen@mit.edu / Password@123');
-  console.log('Team 1 (Member A):    rohan.gupta@nitt.edu / Password@123');
-  console.log('Team 1 (Member B):    ananya.deshmukh@nitt.edu / Password@123');
-  console.log('Team 2 (Member A):    dev.kapoor@pilani.bits-pilani.ac.in / Password@123');
+  console.log('Participant 1:        alex.chen@mit.edu / Password@123');
+  console.log('Participant 2:        priya.sharma@iitd.ac.in / Password@123');
+  console.log('Participant 3:        marcus.vance@stanford.edu / Password@123');
+  console.log('Participant 4:        rohan.gupta@nitt.edu / Password@123');
+  console.log('Participant 5:        ananya.deshmukh@nitt.edu / Password@123');
+  console.log('Participant 6:        dev.kapoor@pilani.bits-pilani.ac.in / Password@123');
   console.log('----------------------------------------------------');
 }
 

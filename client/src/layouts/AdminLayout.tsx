@@ -23,7 +23,6 @@ export const AdminLayout: React.FC = () => {
   const navItems = [
     { name: 'Overview', path: '/admin', icon: LayoutDashboard },
     { name: 'Participants', path: '/admin/participants', icon: UserCheck },
-    { name: 'Teams', path: '/admin/teams', icon: Users },
     { name: 'Questions', path: '/admin/questions', icon: FileQuestion },
     { name: 'Submissions', path: '/admin/submissions', icon: FileCode },
     { name: 'Qualification Hub', path: '/admin/qualification', icon: Award },
@@ -89,8 +88,8 @@ export const AdminLayout: React.FC = () => {
           </Link>
 
           <button
-            onClick={() => logout()}
-            className="w-full flex items-center gap-2 px-4 py-2 rounded-xl text-xs text-rose-400 hover:bg-rose-950/20 transition-colors"
+            onClick={async () => { await logout(); }}
+            className="w-full flex items-center gap-2 px-4 py-2 rounded-xl text-xs text-rose-400 hover:bg-rose-950/20 transition-colors cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
             <span>Sign Out Admin</span>

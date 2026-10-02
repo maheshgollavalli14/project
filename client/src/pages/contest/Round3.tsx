@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api.js';
-import { getSocket } from '../../services/socket.js';
 import { useAuthStore } from '../../stores/authStore.js';
 import { useContestStore } from '../../stores/contestStore.js';
 import { Question, ContestRound } from '../../types/index.js';
@@ -10,7 +9,7 @@ import { CodeEditor } from '../../components/CodeEditor.js';
 import { AntiCheatGuard } from '../../components/AntiCheatGuard.js';
 import { StatusBadge } from '../../components/ui/StatusBadge.js';
 import { GradientButton } from '../../components/ui/GradientButton.js';
-import { Terminal, Maximize2, CheckCircle2, Lock, Play, Send, ShieldAlert, Clock, ArrowLeft, CheckSquare } from 'lucide-react';
+import { Terminal, Maximize2, CheckCircle2, Play, Send, ShieldAlert, Clock, ArrowLeft, CheckSquare } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import { FinalSubmitModal } from '../../components/FinalSubmitModal.js';
@@ -18,18 +17,18 @@ import { FinalSubmitModal } from '../../components/FinalSubmitModal.js';
 export const Round3: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { setActiveRound, setRemainingSeconds, setProblemLock, activeLocks } = useContestStore();
+  const { setActiveRound, setRemainingSeconds } = useContestStore();
 
   const [round, setRound] = useState<ContestRound | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [code, setCode] = useState('');
+  const [language, setLanguage] = useState<string>('python');
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFinalModalOpen, setIsFinalModalOpen] = useState(false);
   const [isFinalSubmitting, setIsFinalSubmitting] = useState(false);
   const [consoleOutput, setConsoleOutput] = useState<any>(null);
-  const [lockError, setLockError] = useState<string | null>(null);
   const [accessError, setAccessError] = useState<{
     code: string;
     message: string;
@@ -39,8 +38,6 @@ export const Round3: React.FC = () => {
   } | null>(null);
 
   useEffect(() => {
-    const socket = getSocket();
-
     async function loadRound3() {
       try {
         const contestRes = await api.get('/api/contests/current');
@@ -58,7 +55,7 @@ export const Round3: React.FC = () => {
 
                 if (qList.length > 0) {
                   setCode(qList[0].savedState?.code || qList[0].initialCode || '');
-                  requestLock(qList[0].id, roundDetails.data.round.contestId, roundDetails.data.round.id);
+                  setLanguage(qList[0].savedState?.language || 'python');
                 }
               }
             } catch (err: any) {
@@ -78,51 +75,42 @@ export const Round3: React.FC = () => {
     }
 
     loadRound3();
-
-    socket.on('problem:lock-updated', ({ questionId, lockedBy, status }) => {
-      if (status === 'ACTIVE' && lockedBy) {
-        setProblemLock(questionId, {
-          userId: lockedBy.userId,
-          fullName: lockedBy.fullName,
-          isLockedByMe: lockedBy.userId === user?.id,
-          expiresAt: new Date(Date.now() + 45000).toISOString(),
-        });
-      } else {
-        setProblemLock(questionId, null);
-      }
-    });
-
-    return () => {
-      socket.off('problem:lock-updated');
-    };
   }, []);
 
   const currentQ = questions[currentIndex];
 
-  const requestLock = async (questionId: string, contestId: string, roundId: string) => {
-    setLockError(null);
-    try {
-      await api.post('/api/team/problem-lock', { contestId, roundId, questionId });
-    } catch (err: any) {
-      if (err.statusCode === 409) {
-        setLockError(err.message || 'Locked by teammate');
-      }
-    }
-  };
+  // Debounced autosave effect for code changes
+  useEffect(() => {
+    if (!currentQ) return;
+    const timer = setTimeout(() => {
+      api.post(`/api/questions/${currentQ.id}/save`, { code, language }).catch(() => {});
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [code, language, currentQ?.id]);
 
   const handleSelectQuestion = (idx: number) => {
-    if (currentQ && round) {
-      api.delete('/api/team/problem-lock', { data: { questionId: currentQ.id } }).catch(() => {});
+    if (idx === currentIndex) return;
+
+    // 1. Save current question code before switching to prevent code mixing
+    if (currentQ) {
+      const updated = [...questions];
+      updated[currentIndex].savedState = {
+        ...updated[currentIndex].savedState,
+        questionId: currentQ.id,
+        code,
+        language,
+      };
+      setQuestions(updated);
+
+      api.post(`/api/questions/${currentQ.id}/save`, { code, language }).catch(() => {});
     }
 
+    // 2. Switch to target question with isolated code
     setCurrentIndex(idx);
     const q = questions[idx];
     setCode(q.savedState?.code || q.initialCode || '');
+    setLanguage(q.savedState?.language || 'python');
     setConsoleOutput(null);
-
-    if (round) {
-      requestLock(q.id, round.contestId, round.id);
-    }
   };
 
   const handleRun = async (userCode: string, lang: string) => {
@@ -135,9 +123,9 @@ export const Round3: React.FC = () => {
         code: userCode,
         language: lang,
       });
-      setConsoleOutput(res.data);
+      setConsoleOutput({ ...res.data, isRun: true });
     } catch (err: any) {
-      setConsoleOutput({ error: err.message });
+      setConsoleOutput({ error: err.message, isRun: true });
     } finally {
       setIsRunning(false);
     }
@@ -152,16 +140,17 @@ export const Round3: React.FC = () => {
         code: userCode,
         language: lang,
       });
-      setConsoleOutput(res.data);
-      if (res.data?.status === 'ACCEPTED') {
-        confetti({ particleCount: 100, spread: 90, origin: { y: 0.5 } });
+      if (res.success) {
+        setConsoleOutput({ isRun: false, submitted: true });
       }
     } catch (err: any) {
-      setConsoleOutput({ error: err.message });
+      setConsoleOutput({ error: err.message, isRun: false });
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const [submissionComplete, setSubmissionComplete] = useState(false);
 
   const handleFinalSubmit = async () => {
     if (!round) return;
@@ -169,11 +158,13 @@ export const Round3: React.FC = () => {
     try {
       if (currentQ) {
         await api.post(`/api/questions/${currentQ.id}/save`, { code }).catch(() => {});
-        await api.delete('/api/team/problem-lock', { data: { questionId: currentQ.id } }).catch(() => {});
       }
       const res = await api.post(`/api/rounds/${round.id}/finalize`);
       if (res.success) {
-        navigate('/dashboard');
+        setSubmissionComplete(true);
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 2200);
       }
     } catch (err: any) {
       alert(err.message || 'Failed to finalize round');
@@ -204,7 +195,41 @@ export const Round3: React.FC = () => {
     }
   });
 
+  if (submissionComplete) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center px-4">
+        <GlassCard glow className="max-w-xl w-full p-8 text-center space-y-6 border border-emerald-500/40">
+          <div className="mx-auto w-16 h-16 rounded-2xl flex items-center justify-center bg-emerald-950/60 border border-emerald-500/40">
+            <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+          </div>
+          <div className="space-y-2">
+            <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400">
+              Submission Confirmed
+            </span>
+            <h2 className="text-2xl font-black text-white">
+              Round 3 Submitted Successfully
+            </h2>
+            <p className="text-sm font-medium text-slate-200">
+              This round is now locked and cannot be reopened.
+            </p>
+            <p className="text-xs text-slate-400 pt-2">
+              Redirecting you to the dashboard...
+            </p>
+          </div>
+          <div className="pt-4 border-t border-purple-500/15 flex items-center justify-center">
+            <Link to="/dashboard">
+              <GradientButton size="md" variant="primary" leftIcon={<ArrowLeft className="w-4 h-4" />}>
+                Go to Dashboard
+              </GradientButton>
+            </Link>
+          </div>
+        </GlassCard>
+      </div>
+    );
+  }
+
   if (accessError) {
+    const isLocked = accessError.code === 'ROUND_LOCKED' || accessError.code === 'ROUND_SUBMITTED';
     const isNotQualified = accessError.code === 'NOT_QUALIFIED';
     const isNotStarted = accessError.code === 'ROUND_NOT_STARTED';
     const isCompleted = accessError.code === 'ROUND_COMPLETED';
@@ -213,7 +238,9 @@ export const Round3: React.FC = () => {
       <div className="min-h-[80vh] flex items-center justify-center px-4">
         <GlassCard glow className="max-w-xl w-full p-8 text-center space-y-6 border border-purple-500/30">
           <div className="mx-auto w-16 h-16 rounded-2xl flex items-center justify-center bg-purple-950/60 border border-purple-500/30">
-            {isNotQualified ? (
+            {isLocked ? (
+              <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+            ) : isNotQualified ? (
               <ShieldAlert className="w-8 h-8 text-rose-400" />
             ) : isNotStarted ? (
               <Clock className="w-8 h-8 text-purple-400" />
@@ -227,7 +254,9 @@ export const Round3: React.FC = () => {
               Round 3 • Grand Finale Workstation
             </span>
             <h2 className="text-2xl font-black text-white">
-              {isNotQualified
+              {isLocked
+                ? 'Round 3 Submitted & Locked'
+                : isNotQualified
                 ? 'Access Restricted: Below Advancement Cutoff'
                 : isNotStarted
                 ? 'Round 3 Has Not Started Yet'
@@ -236,7 +265,9 @@ export const Round3: React.FC = () => {
                 : 'Arena Unavailable'}
             </h2>
             <p className="text-xs text-slate-300 leading-relaxed max-w-md mx-auto">
-              {accessError.message}
+              {isLocked
+                ? 'This round has already been submitted and is locked. You cannot reopen or view questions from this round.'
+                : accessError.message}
             </p>
           </div>
 
@@ -268,7 +299,23 @@ export const Round3: React.FC = () => {
 
   return (
     <div className="h-[calc(100vh-5rem)] flex flex-col bg-[#060712] overflow-hidden">
-      {round && <AntiCheatGuard contestId={round.contestId} roundId={round.id} />}
+      {round && (
+        <AntiCheatGuard
+          contestId={round.contestId}
+          roundId={round.id}
+          questionId={currentQ?.id}
+          initialExitCount={(round as any).fullscreenExitCount || 0}
+          onBeforeFullscreenExit={async () => {
+            if (currentQ) {
+              await api.post(`/api/questions/${currentQ.id}/save`, { code, language }).catch(() => {});
+            }
+          }}
+          onAutoSubmit={() => {
+            setSubmissionComplete(true);
+            setTimeout(() => navigate('/dashboard'), 2500);
+          }}
+        />
+      )}
 
       {/* Top Navigation Strip */}
       <div className="h-14 bg-[#0a0c20] border-b border-purple-500/20 px-6 flex items-center justify-between shrink-0">
@@ -318,7 +365,6 @@ export const Round3: React.FC = () => {
           </span>
           {questions.map((q, idx) => {
             const isSelected = idx === currentIndex;
-            const isLocked = activeLocks[q.id] && !activeLocks[q.id].isLockedByMe;
 
             return (
               <div
@@ -337,7 +383,6 @@ export const Round3: React.FC = () => {
                 <div className="font-semibold text-white truncate">{q.title}</div>
                 <div className="flex items-center justify-between mt-1 text-[10px] font-mono">
                   <span>{q.points} Pts</span>
-                  {isLocked && <span className="text-rose-400 flex items-center gap-0.5"><Lock className="w-3 h-3" /> Locked</span>}
                 </div>
               </div>
             );
@@ -395,12 +440,14 @@ export const Round3: React.FC = () => {
         <div className="col-span-12 md:col-span-5 lg:col-span-6 flex flex-col h-full bg-[#080a18]">
           <div className="flex-1 relative">
             <CodeEditor
+              key={currentQ?.id}
               initialCode={code}
+              language={language}
+              onLanguageChange={(newLang) => setLanguage(newLang)}
               onRun={handleRun}
               onSubmit={handleSubmit}
               isRunning={isRunning}
               isSubmitting={isSubmitting}
-              lockWarning={lockError}
               onChange={(val) => setCode(val)}
             />
           </div>
@@ -408,21 +455,51 @@ export const Round3: React.FC = () => {
           {/* Console Output Drawer */}
           {consoleOutput && (
             <div className="h-44 bg-[#0a0c20] border-t border-purple-500/20 p-4 overflow-y-auto text-xs font-mono space-y-2">
-              <div className="flex items-center justify-between pb-2 border-b border-purple-500/15">
-                <span className="font-bold text-purple-300 uppercase text-[10px]">Console Output:</span>
-                <StatusBadge status={consoleOutput.status || consoleOutput.overallStatus || 'RESULT'} size="sm" />
-              </div>
+              {consoleOutput.isRun ? (
+                <>
+                  <div className="flex items-center justify-between pb-2 border-b border-purple-500/15">
+                    <span className="font-bold text-white uppercase text-[10px]">
+                      Run Output (Sample Tests)
+                    </span>
+                    {consoleOutput.totalTests !== undefined && consoleOutput.totalTests > 0 && (
+                      <span className="font-mono text-purple-300 font-bold">
+                        Sample Tests: {consoleOutput.passedTests ?? 0}/{consoleOutput.totalTests} passed
+                      </span>
+                    )}
+                  </div>
 
-              {consoleOutput.testResults?.map((t: any, i: number) => (
-                <div key={i} className="flex items-center justify-between text-slate-300">
-                  <span>Test #{i + 1}: {t.passed ? 'PASSED' : 'FAILED'}</span>
-                  <span>{t.runtimeMs}ms</span>
-                </div>
-              ))}
+                  {/* Sample test results */}
+                  {consoleOutput.testResults?.map((t: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between text-slate-300">
+                      <span>Sample Test #{i + 1}: {t.passed ? 'PASSED' : 'FAILED'}</span>
+                      <span>{t.runtimeMs}ms</span>
+                    </div>
+                  ))}
 
-              {consoleOutput.score !== undefined && (
-                <div className="text-white font-bold">
-                  Score Earned: {consoleOutput.score} / {currentQ?.points}
+                  {consoleOutput.errorOutput && (
+                    <div className="text-rose-400 font-mono text-[11px] bg-rose-950/40 p-2 rounded">
+                      {consoleOutput.errorOutput}
+                    </div>
+                  )}
+                  {consoleOutput.error && (
+                    <div className="text-rose-400 font-mono text-[11px] bg-rose-950/40 p-2 rounded">
+                      {consoleOutput.error}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="space-y-2">
+                  {consoleOutput.submitted && (
+                    <div className="flex items-center gap-2 text-emerald-400 font-medium py-1">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span>Answer submitted successfully</span>
+                    </div>
+                  )}
+                  {consoleOutput.error && (
+                    <div className="text-rose-400 font-mono text-[11px] bg-rose-950/40 p-2 rounded">
+                      {consoleOutput.error}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

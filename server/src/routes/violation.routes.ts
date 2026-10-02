@@ -5,5 +5,8 @@ import { authenticate } from '../middleware/auth.middleware.js';
 const router = Router();
 
 router.post('/', authenticate, ViolationController.logViolation);
+router.post('/resolve-fullscreen', authenticate, ViolationController.resolveFullscreen);
+router.post('/fullscreen-return', authenticate, ViolationController.resolveFullscreen);
+router.post('/fullscreen-timeout', authenticate, ViolationController.timeoutFullscreen);
 
 export default router;

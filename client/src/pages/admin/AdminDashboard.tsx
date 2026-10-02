@@ -201,7 +201,7 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const handleEndRound = async (roundId: string) => {
-    if (!window.confirm('Are you sure you want to end this round? All locks will be released and submissions closed.')) return;
+    if (!window.confirm('Are you sure you want to end this round? Submissions will be closed.')) return;
     setRoundActionLoading(true);
     try {
       await api.post('/api/admin/contest/end-round', { roundId });
@@ -249,7 +249,7 @@ export const AdminDashboard: React.FC = () => {
             <Users className="w-6 h-6 text-purple-400" />
           </div>
           <p className="text-[11px] text-slate-400 font-mono">
-            {metrics?.totalIndividuals || 0} solo • {metrics?.totalTeams || 0} {metrics?.totalTeams === 1 ? 'team' : 'teams'} ({metrics?.totalTeamMembers || 0} {metrics?.totalTeamMembers === 1 ? 'member' : 'members'})
+            Individual Competitors
           </p>
         </GlassCard>
 

@@ -9,13 +9,7 @@ datasource db {
 
 enum Role {
   PARTICIPANT
-  TEAM_MEMBER
   ADMIN
-}
-
-enum ParticipationType {
-  INDIVIDUAL
-  TEAM
 }
 
 enum ContestStatus {
@@ -61,18 +55,19 @@ enum SubmissionStatus {
   RUNTIME_ERROR
 }
 
-enum LockStatus {
-  ACTIVE
-  RELEASED
-  EXPIRED
-}
-
 enum ViolationType {
   FULLSCREEN_EXIT
   TAB_SWITCH
+  WINDOW_BLUR
   COPY
   PASTE
-  WINDOW_BLUR
+  CUT
+  CONTEXT_MENU
+  SUSPICIOUS_KEYBOARD_SHORTCUT
+  NAVIGATION_ATTEMPT
+  MULTIPLE_LOGIN
+  INVALID_SUBMISSION_ATTEMPT
+  OTHER_SUSPICIOUS_ACTIVITY
   SUSPICIOUS_ACTIVITY
 }
 
@@ -80,6 +75,7 @@ enum Severity {
   LOW
   MEDIUM
   HIGH
+  CRITICAL
 }
 
 enum PaymentStatus {
@@ -88,9 +84,11 @@ enum PaymentStatus {
   FAILED
 }
 
-enum TeamMemberRole {
-  LEADER
-  MEMBER
+enum ParticipantRoundStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  LOCKED
 }
 
 model User {
@@ -103,13 +101,13 @@ model User {
   updatedAt    DateTime    @updatedAt
 
   profile      Profile?
-  teamMember   TeamMember?
   submissions  Submission[]
   savedCodes   SavedCode[]
   scores       Score[]
   violations   Violation[]
   payments     Payment[]
-  locks        ProblemLock[]
+  sessions     UserSession[]
+  roundProgress ParticipantRoundProgress[]
 
   @@index([email])
 }
@@ -121,46 +119,11 @@ model Profile {
   college        String
   phone          String
   participantId  String            @unique
-  participation  ParticipationType @default(INDIVIDUAL)
   avatarUrl      String?
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
   user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Team {
-  id             String        @id @default(uuid())
-  name           String
-  teamId         String        @unique
-  college        String
-  inviteCode     String?
-  status         String        @default("ACTIVE")
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-
-  members        TeamMember[]
-  submissions    Submission[]
-  savedCodes     SavedCode[]
-  scores         Score[]
-  violations     Violation[]
-  payments       Payment[]
-  locks          ProblemLock[]
-
-  @@index([teamId])
-}
-
-model TeamMember {
-  id         String         @id @default(uuid())
-  teamId     String
-  userId     String         @unique
-  roleInTeam TeamMemberRole @default(MEMBER)
-  joinedAt   DateTime       @default(now())
-
-  team       Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([teamId])
 }
 
 model Contest {
@@ -199,7 +162,7 @@ model ContestRound {
   questions       Question[]
   submissions     Submission[]
   scores          Score[]
-  locks           ProblemLock[]
+  participantProgress ParticipantRoundProgress[]
 
   @@unique([contestId, roundNumber])
 }
@@ -228,7 +191,6 @@ model Question {
   testCases        TestCase[]
   submissions      Submission[]
   savedCodes       SavedCode[]
-  locks            ProblemLock[]
 
   @@index([roundId])
 }
@@ -260,32 +222,10 @@ model TestCase {
   @@index([questionId])
 }
 
-model ProblemLock {
-  id            String     @id @default(uuid())
-  contestId     String
-  roundId       String
-  questionId    String
-  teamId        String
-  userId        String
-  lockedAt      DateTime   @default(now())
-  lastHeartbeat DateTime   @default(now())
-  expiresAt     DateTime
-  status        LockStatus @default(ACTIVE)
-
-  round         ContestRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  question      Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  team          Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([teamId, questionId])
-  @@index([expiresAt])
-}
-
 model Submission {
   id           String           @id @default(uuid())
   questionId   String
   userId       String
-  teamId       String?
   roundId      String
   language     String           // python, java, cpp, text
   code         String
@@ -300,11 +240,9 @@ model Submission {
 
   question     Question         @relation(fields: [questionId], references: [id], onDelete: Cascade)
   user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  team         Team?            @relation(fields: [teamId], references: [id], onDelete: SetNull)
   round        ContestRound     @relation(fields: [roundId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([teamId])
   @@index([questionId])
 }
 
@@ -312,7 +250,6 @@ model SavedCode {
   id               String    @id @default(uuid())
   questionId       String
   userId           String
-  teamId           String?
   code             String?
   language         String?
   selectedOptionId String?
@@ -321,61 +258,57 @@ model SavedCode {
 
   question         Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  team             Team?     @relation(fields: [teamId], references: [id], onDelete: SetNull)
 
   @@unique([userId, questionId])
-  @@index([teamId, questionId])
 }
 
 model Score {
-  id             String       @id @default(uuid())
+  id             String        @id @default(uuid())
   contestId      String
   roundId        String?
-  userId         String?
-  teamId         String?
-  points         Int          @default(0)
-  solvedCount    Int          @default(0)
-  penaltySeconds Int          @default(0)
-  isQualified    Boolean      @default(false)
+  userId         String
+  points         Int           @default(0)
+  solvedCount    Int           @default(0)
+  penaltySeconds Int           @default(0)
+  isQualified    Boolean       @default(false)
   rank           Int?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
-  contest        Contest      @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  contest        Contest       @relation(fields: [contestId], references: [id], onDelete: Cascade)
   round          ContestRound? @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  user           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  team           Team?        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([contestId, roundId, userId])
-  @@unique([contestId, roundId, teamId])
   @@index([contestId, points, penaltySeconds])
 }
 
 model Violation {
-  id        String        @id @default(uuid())
-  userId    String
-  teamId    String?
-  contestId String
-  roundId   String?
-  type      ViolationType
-  severity  Severity      @default(LOW)
-  metadata  String?       // JSON string with extra details like timestamp, key info
-  reviewed  Boolean       @default(false)
-  adminNote String?
-  createdAt DateTime      @default(now())
+  id         String        @id @default(uuid())
+  userId     String
+  contestId  String?
+  roundId    String?
+  questionId String?
+  type       ViolationType
+  severity   Severity      @default(LOW)
+  metadata   String?       // JSON string with extra details like timestamp, key info
+  reviewed   Boolean       @default(false)
+  adminNote  String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @default(now()) @updatedAt
 
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  team      Team?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
-  contest   Contest       @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contest    Contest?      @relation(fields: [contestId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([contestId])
+  @@index([roundId])
+  @@index([questionId])
 }
 
 model Payment {
   id            String        @id @default(uuid())
   userId        String
-  teamId        String?
   amount        Float
   currency      String        @default("INR")
   transactionId String        @unique
@@ -384,7 +317,6 @@ model Payment {
   createdAt     DateTime      @default(now())
 
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  team          Team?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
 
   @@index([transactionId])
   @@index([userId])
@@ -411,3 +343,42 @@ model ContestSetting {
   description String?
   updatedAt   DateTime @updatedAt
 }
+
+model UserSession {
+  id             String    @id @default(uuid())
+  userId         String
+  sessionToken   String    @unique @default(uuid())
+  userAgent      String?
+  ipAddress      String?
+  createdAt      DateTime  @default(now())
+  lastActivityAt DateTime  @default(now())
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  isActive       Boolean   @default(true)
+
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@index([sessionToken])
+}
+
+model ParticipantRoundProgress {
+  id           String                 @id @default(uuid())
+  userId       String
+  roundId      String
+  status       ParticipantRoundStatus @default(NOT_STARTED)
+  startedAt    DateTime?
+  submittedAt  DateTime?
+  lockedAt     DateTime?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  round        ContestRound           @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roundId])
+  @@index([userId, status])
+  @@index([roundId])
+}
+
+

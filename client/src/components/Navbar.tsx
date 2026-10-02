@@ -89,8 +89,8 @@ export const Navbar: React.FC = () => {
                     </span>
                   </div>
                   <button
-                    onClick={() => logout()}
-                    className="p-1.5 text-slate-400 hover:text-rose-400 transition-colors ml-1"
+                    onClick={async () => { await logout(); }}
+                    className="p-1.5 text-slate-400 hover:text-rose-400 transition-colors ml-1 cursor-pointer"
                     title="Logout"
                   >
                     <LogOut className="w-4 h-4" />
@@ -150,11 +150,11 @@ export const Navbar: React.FC = () => {
                   <GradientButton className="w-full">Dashboard</GradientButton>
                 </Link>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     setMobileMenuOpen(false);
-                    logout();
+                    await logout();
                   }}
-                  className="w-full py-2 text-center text-sm font-semibold text-rose-400 hover:bg-rose-950/20 rounded-xl"
+                  className="w-full py-2 text-center text-sm font-semibold text-rose-400 hover:bg-rose-950/20 rounded-xl cursor-pointer"
                 >
                   Sign Out
                 </button>

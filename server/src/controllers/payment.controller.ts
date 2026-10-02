@@ -7,7 +7,6 @@ export class PaymentController {
   static async createOrder(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.user!.userId;
-      const teamId = req.user?.teamId;
 
       // Fetch contest fee
       const contest = await prisma.contest.findFirst({
@@ -17,7 +16,6 @@ export class PaymentController {
 
       const order = await PaymentService.createPayment({
         userId,
-        teamId,
         amount,
       });
 
@@ -33,13 +31,11 @@ export class PaymentController {
   static async verify(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.user!.userId;
-      const teamId = req.user?.teamId;
       const { transactionId, orderId, signature } = req.body;
 
       const payment = await PaymentService.verifyPayment(
         { transactionId, orderId, signature },
-        userId,
-        teamId
+        userId
       );
 
       res.status(200).json({

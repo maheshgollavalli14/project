@@ -15,6 +15,12 @@ describe('Authoritative Round Scheduling & Round 3 Qualification Gating Scenario
   let r3QuestionId: string;
 
   beforeAll(async () => {
+    // Clear any existing active sessions
+    await prisma.userSession.deleteMany({
+      where: { user: { email: { in: ['admin@codebreak.dev', 'alex.chen@mit.edu'] } } },
+    });
+    await prisma.participantRoundProgress.deleteMany();
+
     // 1. Authenticate Admin
     const adminRes = await request(app).post('/api/auth/login').send({
       email: 'admin@codebreak.dev',

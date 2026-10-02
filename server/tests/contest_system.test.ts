@@ -13,6 +13,12 @@ describe('CODEBREAK Platform Automated Integration Test Suite', () => {
   let violationId: string;
 
   beforeAll(async () => {
+    // Clear any existing active sessions
+    await prisma.userSession.deleteMany({
+      where: { user: { email: { in: ['admin@codebreak.dev', 'alex.chen@mit.edu', 'rohan.gupta@nitt.edu', 'ananya.deshmukh@nitt.edu', 'dev.kapoor@pilani.bits-pilani.ac.in'] } } },
+    });
+    await prisma.participantRoundProgress.deleteMany();
+
     // 1. Authenticate Admin
     const adminRes = await request(app)
       .post('/api/auth/login')
@@ -132,65 +138,29 @@ describe('CODEBREAK Platform Automated Integration Test Suite', () => {
     });
   });
 
-  describe('4. Team Concurrency & Server-side Problem Locking', () => {
-    it('Teammate 1 acquires lock on question successfully', async () => {
+  describe('4. Individual Participant Concurrency & Independent Autosave', () => {
+    it('Participant 1 autosaves draft code successfully', async () => {
       const res = await request(app)
-        .post('/api/team/problem-lock')
+        .post(`/api/questions/${sampleQuestionId}/save`)
         .set('Authorization', `Bearer ${teamMember1Token}`)
         .send({
-          contestId,
-          roundId: round1Id,
-          questionId: sampleQuestionId,
-        });
-      expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-      expect(res.body.data.lock.userId).toBeDefined();
-    });
-
-    it('Teammate 2 attempting to lock same problem is rejected with 409 Conflict', async () => {
-      const res = await request(app)
-        .post('/api/team/problem-lock')
-        .set('Authorization', `Bearer ${teamMember2Token}`)
-        .send({
-          contestId,
-          roundId: round1Id,
-          questionId: sampleQuestionId,
-        });
-      expect(res.status).toBe(409);
-      expect(res.body.success).toBe(false);
-      expect(res.body.code).toBe('PROBLEM_LOCKED');
-    });
-
-    it('Teammate 1 releases the lock successfully', async () => {
-      const res = await request(app)
-        .delete('/api/team/problem-lock')
-        .set('Authorization', `Bearer ${teamMember1Token}`)
-        .send({
-          questionId: sampleQuestionId,
+          code: 'def solution(): return 42',
+          language: 'python',
         });
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
     });
 
-    it('Teammate 2 can now acquire the lock after teammate released it', async () => {
+    it('Participant 2 can simultaneously save draft code on the same question without locking conflicts', async () => {
       const res = await request(app)
-        .post('/api/team/problem-lock')
+        .post(`/api/questions/${sampleQuestionId}/save`)
         .set('Authorization', `Bearer ${teamMember2Token}`)
         .send({
-          contestId,
-          roundId: round1Id,
-          questionId: sampleQuestionId,
+          code: 'def solution(): return 100',
+          language: 'python',
         });
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-
-      // Clean up by unlocking
-      await request(app)
-        .delete('/api/team/problem-lock')
-        .set('Authorization', `Bearer ${teamMember2Token}`)
-        .send({
-          questionId: sampleQuestionId,
-        });
     });
   });
 

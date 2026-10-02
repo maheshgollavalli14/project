@@ -3,10 +3,9 @@ import { api } from '../services/api.js';
 import { LeaderboardEntry } from '../types/index.js';
 import { GlassCard } from '../components/ui/GlassCard.js';
 import { StatusBadge } from '../components/ui/StatusBadge.js';
-import { Trophy, Users, User, Clock, CheckCircle2, ShieldAlert, Sparkles, RefreshCw } from 'lucide-react';
+import { Trophy, Clock, CheckCircle2, ShieldAlert, RefreshCw } from 'lucide-react';
 
 export const Leaderboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'INDIVIDUAL' | 'TEAM'>('INDIVIDUAL');
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [isFrozen, setIsFrozen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -14,7 +13,7 @@ export const Leaderboard: React.FC = () => {
   const fetchLeaderboard = async () => {
     try {
       setIsLoading(true);
-      const res = await api.get(`/api/leaderboard?type=${activeTab}`);
+      const res = await api.get('/api/leaderboard');
       if (res.success && res.data) {
         setEntries(res.data.entries || []);
         setIsFrozen(res.data.isFrozen || false);
@@ -28,7 +27,7 @@ export const Leaderboard: React.FC = () => {
 
   useEffect(() => {
     fetchLeaderboard();
-  }, [activeTab]);
+  }, []);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -53,32 +52,12 @@ export const Leaderboard: React.FC = () => {
         )}
       </div>
 
-      {/* Tabs & Refresh */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-2 bg-[#0d0f22] p-1.5 rounded-2xl border border-purple-500/20">
-          <button
-            onClick={() => setActiveTab('INDIVIDUAL')}
-            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'INDIVIDUAL'
-                ? 'bg-purple-600 text-white shadow-[0_0_15px_rgba(139,92,246,0.5)]'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <User className="w-4 h-4" />
-            <span>Individuals</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('TEAM')}
-            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'TEAM'
-                ? 'bg-indigo-600 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>Teams (2-Member)</span>
-          </button>
+      {/* Action Bar */}
+      <div className="flex items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-mono text-purple-300 uppercase tracking-wider font-semibold">
+            Individual Rankings
+          </span>
         </div>
 
         <button
@@ -97,7 +76,7 @@ export const Leaderboard: React.FC = () => {
             <thead className="bg-[#090b1c] border-b border-purple-500/15 text-slate-400 font-mono uppercase tracking-wider text-[10px]">
               <tr>
                 <th className="py-3.5 px-6">Rank</th>
-                <th className="py-3.5 px-6">{activeTab === 'TEAM' ? 'Team Name' : 'Participant'}</th>
+                <th className="py-3.5 px-6">Participant</th>
                 <th className="py-3.5 px-6">College</th>
                 <th className="py-3.5 px-6 text-center">Solved</th>
                 <th className="py-3.5 px-6 text-right">Points</th>
@@ -115,12 +94,11 @@ export const Leaderboard: React.FC = () => {
               ) : entries.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-400">
-                    No submissions recorded yet for this track.
+                    No submissions recorded yet.
                   </td>
                 </tr>
               ) : (
                 entries.map((entry) => {
-                  const isTop3 = entry.rank <= 3;
                   const rankBadgeColor =
                     entry.rank === 1
                       ? 'text-amber-400 bg-amber-400/10 border-amber-400/30'

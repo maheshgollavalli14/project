@@ -2,15 +2,16 @@ import { Response, NextFunction } from 'express';
 import { prisma } from '../config/db.js';
 import { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { TimerService } from '../services/timer.service.js';
-import { ProblemLockService } from '../services/problemLock.service.js';
 import { QualificationService } from '../services/qualification.service.js';
+import { ContestService } from '../services/contest.service.js';
+import { FullscreenTimerService } from '../services/fullscreenTimer.service.js';
 import { z } from 'zod';
 
 const saveCodeSchema = z.object({
-  code: z.string().optional(),
-  language: z.string().optional(),
-  selectedOptionId: z.string().optional(),
-  markedForReview: z.boolean().optional(),
+  code: z.string().nullable().optional(),
+  language: z.string().nullable().optional(),
+  selectedOptionId: z.string().nullable().optional(),
+  markedForReview: z.boolean().nullable().optional(),
 });
 
 export class ContestController {
@@ -56,14 +57,13 @@ export class ContestController {
           3,
           contest.id,
           req.user.userId,
-          req.user.teamId,
           req.user.role
         );
 
         const userScore = await prisma.score.findFirst({
           where: {
             contestId: contest.id,
-            ...(req.user.teamId ? { teamId: req.user.teamId } : { userId: req.user.userId }),
+            userId: req.user.userId,
           },
         });
 
@@ -75,23 +75,22 @@ export class ContestController {
         };
       }
 
-      // Fetch finalized round IDs for this user
-      let finalizedRoundIds = new Set<string>();
+      // Fetch participant round progress for this user
+      const participantProgressMap = new Map<string, any>();
       if (req.user?.userId) {
-        const finalAudits = await prisma.auditLog.findMany({
-          where: {
-            actorId: req.user.userId,
-            action: 'FINAL_ROUND_SUBMISSION',
-            entity: 'ContestRound',
-          },
-          select: { entityId: true },
+        const progressList = await prisma.participantRoundProgress.findMany({
+          where: { userId: req.user.userId },
         });
-        finalizedRoundIds = new Set(finalAudits.map((a) => a.entityId).filter(Boolean) as string[]);
+        for (const p of progressList) {
+          participantProgressMap.set(p.roundId, p);
+        }
       }
 
       // Compute server remaining seconds and arena status for each round
       const roundsWithTime = contest.rounds.map((r) => {
-        const isArenaOpen = r.status === 'ACTIVE' && (
+        const prog = participantProgressMap.get(r.id);
+        const isLocked = prog?.status === 'SUBMITTED' || prog?.status === 'LOCKED';
+        const isArenaOpen = r.status === 'ACTIVE' && !isLocked && (
           r.roundNumber !== 3 || req.user?.role === 'ADMIN' || userQualification?.canAccessRound3
         );
 
@@ -99,7 +98,9 @@ export class ContestController {
           ...r,
           remainingSeconds: TimerService.getRemainingSeconds(r.endTime),
           isArenaOpen: Boolean(isArenaOpen),
-          isFinalized: finalizedRoundIds.has(r.id),
+          isFinalized: Boolean(isLocked),
+          isLocked: Boolean(isLocked),
+          participantStatus: prog?.status || 'NOT_STARTED',
         };
       });
 
@@ -126,7 +127,6 @@ export class ContestController {
     try {
       const id = req.params.id as string;
       const userId = req.user?.userId;
-      const teamId = req.user?.teamId;
 
       // 1. Authoritatively synchronize all round statuses with server clock
       await TimerService.syncRoundStatuses();
@@ -203,13 +203,46 @@ export class ContestController {
           return;
         }
 
+        // PERMANENT SUBMISSION LOCK: Check if participant already submitted this round
+        const progress = await prisma.participantRoundProgress.findUnique({
+          where: {
+            userId_roundId: {
+              userId: userId!,
+              roundId: round.id,
+            },
+          },
+        });
+
+        if (progress?.status === 'SUBMITTED' || progress?.status === 'LOCKED') {
+          const fullscreenExitCount = await prisma.violation.count({
+            where: {
+              userId: userId!,
+              roundId: round.id,
+              type: 'FULLSCREEN_EXIT',
+            },
+          });
+
+          res.status(403).json({
+            success: false,
+            code: 'ROUND_LOCKED',
+            message:
+              fullscreenExitCount >= 3
+                ? 'Your round has been automatically submitted and locked.'
+                : 'This round has already been submitted and is locked.',
+            isLocked: true,
+            isFinalized: true,
+            status: 'SUBMITTED',
+            fullscreenExitCount,
+          });
+          return;
+        }
+
         // 3. Strict Round 3 Qualification Check
         if (round.roundNumber === 3) {
           const access = await QualificationService.canUserAccessRound(
             3,
             round.contestId,
             userId!,
-            teamId,
             req.user?.role
           );
 
@@ -223,62 +256,89 @@ export class ContestController {
             return;
           }
         }
+
+        // Mark round as IN_PROGRESS if not already started
+        if (!progress || progress.status === 'NOT_STARTED') {
+          await prisma.participantRoundProgress.upsert({
+            where: {
+              userId_roundId: {
+                userId: userId!,
+                roundId: round.id,
+              },
+            },
+            update: {
+              status: 'IN_PROGRESS',
+              startedAt: progress?.startedAt || new Date(),
+            },
+            create: {
+              userId: userId!,
+              roundId: round.id,
+              status: 'IN_PROGRESS',
+              startedAt: new Date(),
+            },
+          });
+        }
       }
 
-      // Fetch active locks for this team
-      let teamLocks: any[] = [];
-      if (teamId) {
-        teamLocks = await ProblemLockService.getTeamLocks(round.id, teamId);
-      }
-
-      // Fetch saved codes/answers for this user/team
+      // Fetch saved codes/answers for this user
       const savedCodes = await prisma.savedCode.findMany({
         where: {
           question: { roundId: round.id },
-          ...(teamId ? { teamId } : { userId: userId! }),
+          userId: userId!,
         },
+        orderBy: { updatedAt: 'desc' },
       });
 
-      const savedMap = new Map(savedCodes.map((s) => [s.questionId, s]));
+      const savedMap = new Map();
+      for (const s of savedCodes) {
+        if (!savedMap.has(s.questionId)) {
+          savedMap.set(s.questionId, s);
+        }
+      }
 
-      // Attach current locks and saved states
+      const isAdmin = req.user?.role === 'ADMIN';
+
+      // Attach saved states
       const questionsWithState = (round.questions as any[]).map((q: any) => {
-        const lock = teamLocks.find((l) => l.questionId === q.id);
         const saved = savedMap.get(q.id);
+
+        // For non-admin participants, NEVER expose expectedOutput on coding/debugging/jumbled questions or Round 2
+        const isSolutionExposedType = round.roundNumber === 2 || q.type === 'DEBUGGING' || q.type === 'JUMBLED' || q.type === 'CODING';
+        const expectedOutput = (!isAdmin && isSolutionExposedType) ? undefined : q.expectedOutput;
 
         return {
           ...q,
-          currentLock: lock
-            ? {
-                id: lock.id,
-                userId: lock.userId,
-                lockedByName: lock.user.profile?.fullName || 'Teammate',
-                isLockedByMe: lock.userId === userId,
-                expiresAt: lock.expiresAt,
-              }
-            : null,
+          expectedOutput,
+          currentLock: null,
           savedState: saved || null,
         };
       });
 
-      // Check if user has finalized this round
-      const finalAudit = await prisma.auditLog.findFirst({
-        where: {
-          actorId: userId,
-          action: 'FINAL_ROUND_SUBMISSION',
-          entity: 'ContestRound',
-          entityId: round.id,
-        },
-      });
-      const isFinalized = Boolean(finalAudit);
+      // Authoritative count of fullscreen exits for this user in this round
+      const fullscreenExitCount = userId
+        ? await prisma.violation.count({
+            where: {
+              userId,
+              roundId: round.id,
+              type: 'FULLSCREEN_EXIT',
+            },
+          })
+        : 0;
+
+      const activeCountdown = userId
+        ? FullscreenTimerService.getActiveCountdown(userId, round.id)
+        : null;
 
       res.status(200).json({
         success: true,
         data: {
           round: {
             ...round,
-            isFinalized,
+            isFinalized: false,
+            isLocked: false,
             remainingSeconds: TimerService.getRemainingSeconds(round.endTime),
+            fullscreenExitCount,
+            activeFullscreenCountdown: activeCountdown?.active ? activeCountdown : null,
             questions: questionsWithState,
           },
         },
@@ -295,9 +355,40 @@ export class ContestController {
     try {
       const questionId = req.params.id as string;
       const userId = req.user!.userId;
-      const teamId = req.user?.teamId || null;
+
+      const question = await prisma.question.findUnique({
+        where: { id: questionId },
+        select: { id: true, roundId: true },
+      });
+
+      if (!question) {
+        res.status(404).json({ success: false, message: 'Question not found', code: 'NOT_FOUND' });
+        return;
+      }
+
+      // Block draft saving if round has already been submitted
+      if (req.user?.role !== 'ADMIN') {
+        const progress = await prisma.participantRoundProgress.findUnique({
+          where: {
+            userId_roundId: {
+              userId,
+              roundId: question.roundId,
+            },
+          },
+        });
+
+        if (progress?.status === 'SUBMITTED' || progress?.status === 'LOCKED') {
+          res.status(403).json({
+            success: false,
+            code: 'ROUND_LOCKED',
+            message: 'This round has already been submitted and is locked.',
+          });
+          return;
+        }
+      }
 
       const validated = saveCodeSchema.parse(req.body);
+      const markedForReview = validated.markedForReview != null ? Boolean(validated.markedForReview) : undefined;
 
       const saved = await prisma.savedCode.upsert({
         where: {
@@ -310,17 +401,15 @@ export class ContestController {
           code: validated.code,
           language: validated.language,
           selectedOptionId: validated.selectedOptionId,
-          markedForReview: validated.markedForReview,
-          teamId,
+          markedForReview,
         },
         create: {
           questionId,
           userId,
-          teamId,
           code: validated.code,
           language: validated.language,
           selectedOptionId: validated.selectedOptionId,
-          markedForReview: validated.markedForReview || false,
+          markedForReview: markedForReview ?? false,
         },
       });
 
@@ -335,45 +424,62 @@ export class ContestController {
   }
 
   /**
-   * Finalize round submission for the participant or team
+   * Finalize round submission for the participant
    */
   static async finalizeRound(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const roundId = req.params.id as string;
       const userId = req.user!.userId;
-      const teamId = req.user?.teamId || null;
 
-      // Release any active locks for this user or team
-      if (teamId) {
-        await prisma.problemLock.updateMany({
-          where: {
-            roundId,
-            teamId,
-            userId,
-            status: 'ACTIVE',
+      const round = await prisma.contestRound.findUnique({
+        where: { id: roundId },
+      });
+
+      if (!round) {
+        res.status(404).json({ success: false, message: 'Round not found', code: 'NOT_FOUND' });
+        return;
+      }
+
+      if (req.user?.role !== 'ADMIN') {
+        const result = await ContestService.finalizeParticipantRound(
+          userId,
+          roundId,
+          round.contestId,
+          'MANUAL_FINAL_SUBMISSION',
+          req.user!.email
+        );
+
+        if (result.alreadySubmitted) {
+          res.status(409).json({
+            success: false,
+            code: 'ROUND_ALREADY_SUBMITTED',
+            message: 'This round has already been submitted and is locked.',
+          });
+          return;
+        }
+      } else {
+        await prisma.auditLog.create({
+          data: {
+            actorId: userId,
+            actorEmail: req.user!.email,
+            action: 'FINAL_ROUND_SUBMISSION',
+            entity: 'ContestRound',
+            entityId: roundId,
+            metadata: JSON.stringify({ userId, finalizedAt: new Date() }),
           },
-          data: { status: 'RELEASED' },
         });
       }
 
-      await prisma.auditLog.create({
-        data: {
-          actorId: userId,
-          actorEmail: req.user!.email,
-          action: 'FINAL_ROUND_SUBMISSION',
-          entity: 'ContestRound',
-          entityId: roundId,
-          metadata: JSON.stringify({ userId, teamId, finalizedAt: new Date() }),
-        },
-      });
-
       res.status(200).json({
         success: true,
-        message: 'Exam round finalized and submitted successfully.',
+        message: 'Round submitted successfully. This round is now locked and cannot be reopened.',
+        data: {
+          status: 'SUBMITTED',
+          isLocked: true,
+        },
       });
     } catch (err) {
       next(err);
     }
   }
 }
-

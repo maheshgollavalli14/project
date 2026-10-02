@@ -7,12 +7,8 @@ import {
   Save,
   CheckCircle2,
   RefreshCw,
-  Sliders,
   DollarSign,
   Shield,
-  Clock,
-  EyeOff,
-  Bell,
 } from 'lucide-react';
 
 interface SettingMap {
@@ -21,12 +17,12 @@ interface SettingMap {
 
 const DEFAULT_SETTINGS = {
   REGISTRATION_OPEN: 'true',
-  REGISTRATION_FEE_INDIVIDUAL: '250',
-  REGISTRATION_FEE_TEAM: '450',
+  REGISTRATION_FEE: '200',
+  REGISTRATION_FEE_INDIVIDUAL: '200',
   LEADERBOARD_FROZEN: 'false',
   STRICT_FULLSCREEN_ENFORCEMENT: 'true',
-  PROBLEM_LOCK_TIMEOUT_SECONDS: '45',
-  MAX_TEAM_SIZE: '2',
+  MAX_VIOLATIONS_BEFORE_WARNING: '1',
+  MAX_VIOLATIONS_BEFORE_DISQUALIFICATION_REVIEW: '5',
   SUPPORT_EMAIL: 'support@codebreak.dev',
 };
 
@@ -159,71 +155,17 @@ export const AdminSettings: React.FC = () => {
 
             <div>
               <label className="text-xs font-semibold text-slate-300 block mb-1">
-                Individual Registration Fee (INR ₹)
+                Participant Registration Fee (INR ₹)
               </label>
               <input
                 type="number"
-                value={settings.REGISTRATION_FEE_INDIVIDUAL}
-                onChange={(e) => handleChange('REGISTRATION_FEE_INDIVIDUAL', e.target.value)}
+                value={settings.REGISTRATION_FEE || settings.REGISTRATION_FEE_INDIVIDUAL}
+                onChange={(e) => {
+                  handleChange('REGISTRATION_FEE', e.target.value);
+                  handleChange('REGISTRATION_FEE_INDIVIDUAL', e.target.value);
+                }}
                 className="w-full px-3 py-2 bg-slate-900/60 border border-purple-500/20 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-purple-500"
               />
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-slate-300 block mb-1">
-                2-Member Team Registration Fee (INR ₹)
-              </label>
-              <input
-                type="number"
-                value={settings.REGISTRATION_FEE_TEAM}
-                onChange={(e) => handleChange('REGISTRATION_FEE_TEAM', e.target.value)}
-                className="w-full px-3 py-2 bg-slate-900/60 border border-purple-500/20 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-purple-500"
-              />
-            </div>
-          </div>
-        </GlassCard>
-
-        {/* Real-time Collaboration & Locks */}
-        <GlassCard className="p-6 border border-purple-500/20 space-y-4">
-          <div className="flex items-center gap-3 border-b border-purple-500/20 pb-3">
-            <Clock className="w-5 h-5 text-purple-400" />
-            <div>
-              <h2 className="text-sm font-bold text-white">Team Synchronization & Problem Locks</h2>
-              <p className="text-[11px] text-slate-400">Settings for preventing race conditions and stale teammate locks</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-semibold text-slate-300 block mb-1">
-                Problem Lock Heartbeat Timeout (Seconds)
-              </label>
-              <input
-                type="number"
-                min="15"
-                max="300"
-                value={settings.PROBLEM_LOCK_TIMEOUT_SECONDS}
-                onChange={(e) => handleChange('PROBLEM_LOCK_TIMEOUT_SECONDS', e.target.value)}
-                className="w-full px-3 py-2 bg-slate-900/60 border border-purple-500/20 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-purple-500"
-              />
-              <span className="text-[10px] text-slate-400 mt-1 block">
-                Automatic unlock timer when teammate loses connection or leaves problem tab. Default: 45s.
-              </span>
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-slate-300 block mb-1">
-                Max Allowed Members Per Team
-              </label>
-              <input
-                type="number"
-                disabled
-                value={settings.MAX_TEAM_SIZE}
-                className="w-full px-3 py-2 bg-slate-950/80 border border-purple-500/20 rounded-xl text-xs text-slate-400 font-mono cursor-not-allowed"
-              />
-              <span className="text-[10px] text-slate-400 mt-1 block">
-                Enforced by tournament bylaws (Strictly 2 members).
-              </span>
             </div>
           </div>
         </GlassCard>
@@ -270,6 +212,40 @@ export const AdminSettings: React.FC = () => {
               </select>
               <span className="text-[10px] text-slate-400 mt-1 block">
                 Audits all window focus changes and devtool toggles into the Anti-Cheat log.
+              </span>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-300 block mb-1">
+                Violations Threshold for Warning
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={settings.MAX_VIOLATIONS_BEFORE_WARNING}
+                onChange={(e) => handleChange('MAX_VIOLATIONS_BEFORE_WARNING', e.target.value)}
+                className="w-full px-3 py-2 bg-slate-900/60 border border-purple-500/20 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-purple-500"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">
+                Number of logged integrity violations before participant receives formal warning.
+              </span>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-300 block mb-1">
+                Violations Threshold for Disqualification Review
+              </label>
+              <input
+                type="number"
+                min="2"
+                max="50"
+                value={settings.MAX_VIOLATIONS_BEFORE_DISQUALIFICATION_REVIEW}
+                onChange={(e) => handleChange('MAX_VIOLATIONS_BEFORE_DISQUALIFICATION_REVIEW', e.target.value)}
+                className="w-full px-3 py-2 bg-slate-900/60 border border-purple-500/20 rounded-xl text-xs text-white font-mono focus:outline-none focus:border-purple-500"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">
+                Flags contestant in admin audit panel for mandatory proctor review.
               </span>
             </div>
           </div>

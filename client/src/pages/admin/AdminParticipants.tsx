@@ -33,7 +33,7 @@ export const AdminParticipants: React.FC = () => {
         <div>
           <h1 className="text-2xl font-black text-white">Participant Registry</h1>
           <p className="text-xs text-slate-400 mt-1">
-            Search, filter, and inspect enrolled participants, team memberships, and violations.
+            Search, filter, and inspect enrolled participants and violations.
           </p>
         </div>
 
@@ -95,7 +95,7 @@ export const AdminParticipants: React.FC = () => {
                     </td>
                     <td className="py-4 px-6">
                       <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-900/30 text-purple-300 border border-purple-500/30">
-                        {p.profile?.participation || 'INDIVIDUAL'}
+                        INDIVIDUAL
                       </span>
                     </td>
                     <td className="py-4 px-6 text-center font-mono text-slate-300">

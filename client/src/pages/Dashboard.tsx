@@ -51,8 +51,7 @@ export const Dashboard: React.FC = () => {
     loadDashboardData();
   }, []);
 
-  const activeRound = contest?.rounds?.find((r) => r.status === 'ACTIVE');
-  const isTeam = user?.role === 'TEAM_MEMBER' || user?.profile?.participation === 'TEAM';
+  const activeRound = contest?.rounds?.find((r) => r.status === 'ACTIVE' && !r.isFinalized && !(r as any).isLocked) || contest?.rounds?.find((r) => r.status === 'ACTIVE');
   const isAdmin = user?.role === 'ADMIN';
 
   // Can the current user enter Round 3?
@@ -66,10 +65,10 @@ export const Dashboard: React.FC = () => {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <span className="px-3 py-1 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider bg-purple-900/40 text-purple-300 border border-purple-500/30">
-                {isTeam ? 'Team Track' : 'Individual Track'}
+                Individual Participant
               </span>
               <span className="text-xs font-mono text-purple-400">
-                {user?.profile?.participantId || user?.teamMember?.teamId || 'CB-PARTICIPANT'}
+                {user?.profile?.participantId || 'CB-PARTICIPANT'}
               </span>
             </div>
 
@@ -78,19 +77,17 @@ export const Dashboard: React.FC = () => {
             </h1>
 
             <p className="text-xs sm:text-sm text-slate-300 max-w-2xl">
-              {user?.profile?.college} {isTeam && user?.teamMember?.team?.name && `• Team ${user.teamMember.team.name}`}
+              {user?.profile?.college}
             </p>
           </div>
 
           {/* Hero Quick Action Button: Strictly enables ONLY the active round */}
           {activeRound ? (
-            activeRound.isFinalized ? (
-              <Link to={`/contest/round-${activeRound.roundNumber}`}>
-                <div className="px-6 py-3 rounded-2xl bg-emerald-950/60 border border-emerald-500/50 flex items-center gap-2 text-emerald-300 font-mono font-bold text-sm shadow-lg shadow-emerald-950/50 hover:bg-emerald-900/60 transition-colors">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Round {activeRound.roundNumber} Finalized &amp; Submitted</span>
-                </div>
-              </Link>
+            activeRound.isFinalized || (activeRound as any).isLocked ? (
+              <div className="px-6 py-3 rounded-2xl bg-slate-900/80 border border-slate-700/60 flex items-center gap-2 text-slate-300 font-mono font-bold text-sm shadow-lg">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <span>Round {activeRound.roundNumber} Submitted &amp; Locked</span>
+              </div>
             ) : activeRound.roundNumber === 3 ? (
               canEnterRound3 ? (
                 <Link to="/contest/round-3">
@@ -235,13 +232,11 @@ export const Dashboard: React.FC = () => {
                   {isR3 ? (
                     // Round 3 (Grand Finale) checks qualification
                     isRoundActive ? (
-                      r.isFinalized ? (
-                        <Link to="/contest/round-3" className="block w-full">
-                          <div className="w-full py-2 px-3 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-xs font-mono font-bold text-emerald-300 flex items-center justify-center gap-1.5 hover:bg-emerald-900/40 transition-colors">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Submitted &amp; Finalized</span>
-                          </div>
-                        </Link>
+                      r.isFinalized || (r as any).isLocked ? (
+                        <div className="w-full py-2 px-3 rounded-xl bg-slate-900/60 border border-slate-700/50 text-xs font-mono font-bold text-slate-400 flex items-center justify-center gap-1.5 cursor-not-allowed">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Submitted &amp; Locked</span>
+                        </div>
                       ) : canEnterRound3 ? (
                         <Link to="/contest/round-3" className="block w-full">
                           <GradientButton
@@ -279,13 +274,11 @@ export const Dashboard: React.FC = () => {
                   ) : (
                     // Round 1 & Round 2
                     isRoundActive ? (
-                      r.isFinalized ? (
-                        <Link to={`/contest/round-${r.roundNumber}`} className="block w-full">
-                          <div className="w-full py-2 px-3 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-xs font-mono font-bold text-emerald-300 flex items-center justify-center gap-1.5 hover:bg-emerald-900/40 transition-colors">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Submitted &amp; Finalized</span>
-                          </div>
-                        </Link>
+                      r.isFinalized || (r as any).isLocked ? (
+                        <div className="w-full py-2 px-3 rounded-xl bg-slate-900/60 border border-slate-700/50 text-xs font-mono font-bold text-slate-400 flex items-center justify-center gap-1.5 cursor-not-allowed">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Submitted &amp; Locked</span>
+                        </div>
                       ) : (
                         <Link to={`/contest/round-${r.roundNumber}`} className="block w-full">
                           <GradientButton

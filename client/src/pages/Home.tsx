@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { GradientButton } from '../components/ui/GradientButton.js';
 import { GlassCard } from '../components/ui/GlassCard.js';
-import { Terminal, Users, Trophy, Award, ArrowRight, Shield, Zap, Code, Sparkles, CheckCircle } from 'lucide-react';
+import { Terminal, User, Users, Trophy, Award, ArrowRight, Shield, Zap, Code, Sparkles, CheckCircle } from 'lucide-react';
 
 export const Home: React.FC = () => {
   return (
@@ -31,11 +31,11 @@ export const Home: React.FC = () => {
 
           {/* Tagline description */}
           <p className="max-w-3xl mx-auto text-base sm:text-lg text-slate-300 font-normal leading-relaxed mb-10">
-            A high-intensity one-day collegiate programming competition where students compete individually or in two-member synchronized teams across three escalating rounds of algorithmic warfare.
+            A high-intensity one-day collegiate programming competition where students compete individually across three escalating rounds of algorithmic warfare.
           </p>
 
           <p className="text-xs sm:text-sm text-purple-400 font-mono tracking-widest uppercase mb-10 font-bold">
-            Compete. Collaborate. Code. Conquer.
+            Compete. Code. Conquer.
           </p>
 
           {/* Call to Actions */}
@@ -59,12 +59,12 @@ export const Home: React.FC = () => {
               <div className="text-xs text-purple-300 uppercase tracking-wider font-semibold mt-1">Escalating Rounds</div>
             </div>
             <div className="p-4 rounded-2xl bg-[#0d0f22]/70 border border-purple-500/15">
-              <div className="text-2xl sm:text-3xl font-black text-white font-mono">2</div>
-              <div className="text-xs text-purple-300 uppercase tracking-wider font-semibold mt-1">Max Team Size</div>
+              <div className="text-2xl sm:text-3xl font-black text-white font-mono">Solo</div>
+              <div className="text-xs text-purple-300 uppercase tracking-wider font-semibold mt-1">Individual Track</div>
             </div>
             <div className="p-4 rounded-2xl bg-[#0d0f22]/70 border border-purple-500/15">
               <div className="text-2xl sm:text-3xl font-black text-white font-mono">Live</div>
-              <div className="text-xs text-purple-300 uppercase tracking-wider font-semibold mt-1">Problem Locking</div>
+              <div className="text-xs text-purple-300 uppercase tracking-wider font-semibold mt-1">Anti-Cheat Guard</div>
             </div>
             <div className="p-4 rounded-2xl bg-[#0d0f22]/70 border border-purple-500/15">
               <div className="text-2xl sm:text-3xl font-black text-white font-mono">100%</div>
@@ -112,27 +112,27 @@ export const Home: React.FC = () => {
               </div>
             </GlassCard>
 
-            {/* Card 2: Individual & Team Mode */}
+            {/* Card 2: Individual Championship Track */}
             <GlassCard glow className="space-y-4">
               <div className="w-12 h-12 rounded-xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
-                <Users className="w-6 h-6" />
+                <User className="w-6 h-6" />
               </div>
-              <h3 className="text-xl font-bold text-white">DUAL PARTICIPATION MODES</h3>
+              <h3 className="text-xl font-bold text-white">INDIVIDUAL COMPETITOR TRACK</h3>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Compete as a lone prodigy or form a dynamic duo. Teams feature exactly two members with real-time multiplayer problem locking.
+                Compete as a solo programmer across 3 rigorous rounds. Every line of code, score calculation, and ranking is evaluated authoritatively.
               </p>
               <div className="pt-2 flex flex-col gap-2 text-xs font-mono text-indigo-300">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Solo participant track</span>
+                  <span>Solo participant championship</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>2-Student Team synchronization</span>
+                  <span>Real-time code evaluation</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Server-enforced problem locking</span>
+                  <span>Server-authoritative scoring</span>
                 </div>
               </div>
             </GlassCard>
@@ -165,7 +165,7 @@ export const Home: React.FC = () => {
         </div>
       </section>
 
-      {/* Real-time Multiplayer Highlight */}
+      {/* Real-time Architecture Highlight */}
       <section className="py-16 bg-[#060712] border-y border-purple-500/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -175,10 +175,10 @@ export const Home: React.FC = () => {
                 <span>Next-Gen Architecture</span>
               </div>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight mb-6">
-                Server-Controlled Problem Locking & Authoritative Timers
+                Authoritative Anti-Cheat & Timed Arenas
               </h2>
               <p className="text-slate-300 text-sm leading-relaxed mb-6">
-                Unlike typical contest sites where team members step on each others toes, CODEBREAK enforces atomic server-side problem locks. When Member A opens Problem 1, Member B instantly sees Problem 1 locked in real-time.
+                CODEBREAK enforces real-time browser integrity guards, fullscreen lock, and authoritative server-side round timing across all three tournament stages.
               </p>
 
               <div className="space-y-4 text-xs text-slate-300">
@@ -220,14 +220,14 @@ export const Home: React.FC = () => {
 
               <div className="space-y-3 font-mono text-xs">
                 <div className="bg-[#141738] p-3 rounded-xl border border-purple-500/20 text-purple-200">
-                  <span className="text-slate-400">01</span> Member A: <span className="text-emerald-400">Active</span> on Problem 3 (Subarray Harmony)
+                  <span className="text-slate-400">01</span> Anti-Cheat Guard: <span className="text-emerald-400">Active</span> (Fullscreen Secured)
                 </div>
                 <div className="bg-[#181a42] p-3 rounded-xl border border-indigo-500/30 text-indigo-300 flex items-center justify-between">
                   <div>
-                    <span className="text-slate-400">02</span> Member B: Problem 3 is <span className="text-rose-400 font-bold">LOCKED</span>
+                    <span className="text-slate-400">02</span> Problem 3: <span className="text-purple-300 font-bold">In Progress</span>
                   </div>
-                  <span className="text-[10px] uppercase tracking-wider bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded border border-rose-500/30">
-                    Heartbeat 45s
+                  <span className="text-[10px] uppercase tracking-wider bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded border border-purple-500/30">
+                    Subarray Harmony
                   </span>
                 </div>
                 <div className="bg-[#141738] p-3 rounded-xl border border-purple-500/20 text-purple-200">
@@ -246,7 +246,7 @@ export const Home: React.FC = () => {
             Ready to Prove Your Coding Mastery?
           </h2>
           <p className="text-slate-300 text-sm sm:text-base max-w-2xl mx-auto mb-8">
-            Registration is now open. Choose Individual or 2-member Team mode and secure your place in the arena.
+            Registration is now open. Secure your place in the arena as an individual competitor.
           </p>
           <Link to="/register">
             <GradientButton size="lg" className="px-10 py-4 text-lg">

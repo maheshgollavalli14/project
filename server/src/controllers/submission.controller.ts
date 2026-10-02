@@ -45,6 +45,25 @@ export class SubmissionController {
 
       // Assert round is currently active
       if (req.user?.role !== 'ADMIN') {
+        // PERMANENT SUBMISSION LOCK: Check if participant already submitted this round
+        const progress = await prisma.participantRoundProgress.findUnique({
+          where: {
+            userId_roundId: {
+              userId: req.user!.userId,
+              roundId: question.roundId,
+            },
+          },
+        });
+
+        if (progress?.status === 'SUBMITTED' || progress?.status === 'LOCKED') {
+          res.status(403).json({
+            success: false,
+            code: 'ROUND_LOCKED',
+            message: 'This round has already been submitted and is locked.',
+          });
+          return;
+        }
+
         await TimerService.assertRoundActive(question.roundId);
 
         // Strict Round 3 Qualification Check
@@ -53,7 +72,6 @@ export class SubmissionController {
             3,
             question.round.contestId,
             req.user!.userId,
-            req.user?.teamId,
             req.user?.role
           );
 
@@ -91,7 +109,6 @@ export class SubmissionController {
     try {
       const questionId = req.params.id as string;
       const userId = req.user!.userId;
-      const teamId = req.user?.teamId || null;
       const validated = submitSchema.parse(req.body);
 
       const question: any = await prisma.question.findUnique({
@@ -110,6 +127,25 @@ export class SubmissionController {
 
       // 1. Assert round is active and submissions are open
       if (req.user?.role !== 'ADMIN') {
+        // PERMANENT SUBMISSION LOCK: Check if participant already submitted this round
+        const progress = await prisma.participantRoundProgress.findUnique({
+          where: {
+            userId_roundId: {
+              userId,
+              roundId: question.roundId,
+            },
+          },
+        });
+
+        if (progress?.status === 'SUBMITTED' || progress?.status === 'LOCKED') {
+          res.status(403).json({
+            success: false,
+            code: 'ROUND_LOCKED',
+            message: 'This round has already been submitted and is locked.',
+          });
+          return;
+        }
+
         await TimerService.assertRoundActive(question.roundId);
 
         // 2. Strict Round 3 Qualification Check
@@ -118,7 +154,6 @@ export class SubmissionController {
             3,
             question.round.contestId,
             userId,
-            teamId,
             req.user?.role
           );
 
@@ -219,7 +254,6 @@ export class SubmissionController {
         data: {
           questionId,
           userId,
-          teamId,
           roundId: question.roundId,
           language: validated.language || 'text',
           code: validated.code || validated.selectedOptionId || '',
@@ -237,19 +271,34 @@ export class SubmissionController {
       await ScoringService.updateRoundScore(
         question.round.contestId,
         question.roundId,
-        userId,
-        teamId
+        userId
       );
 
       logger.contest('Submission evaluated', 'SubmissionController', {
         submissionId: submission.id,
         questionId,
         userId,
-        teamId,
         status,
         earnedScore,
       });
 
+      const isAdmin = req.user?.role === 'ADMIN';
+
+      if (!isAdmin) {
+        // Participant response: NEVER expose score, points, test cases, or correct/incorrect verdict!
+        // ONLY expose generic submission confirmation
+        res.status(201).json({
+          success: true,
+          message: 'Answer submitted successfully',
+          data: {
+            submissionId: submission.id,
+            status: 'SUBMITTED',
+          },
+        });
+        return;
+      }
+
+      // Admin response: includes internal scores, verdicts, and test details
       res.status(201).json({
         success: true,
         message: status === 'ACCEPTED' ? 'Solution Accepted!' : 'Submission Processed',
@@ -272,15 +321,15 @@ export class SubmissionController {
   }
 
   /**
-   * Get user / team submission history
+   * Get user submission history
    */
   static async getSubmissions(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.user!.userId;
-      const teamId = req.user?.teamId;
+      const isAdmin = req.user?.role === 'ADMIN';
 
       const submissions = await prisma.submission.findMany({
-        where: teamId ? { teamId } : { userId },
+        where: { userId },
         include: {
           question: {
             select: {
@@ -293,6 +342,29 @@ export class SubmissionController {
         orderBy: { createdAt: 'desc' },
         take: 50,
       });
+
+      if (!isAdmin) {
+        // Strip score, points, verdict, and test case counts from participant submission history
+        const participantSubmissions = submissions.map((s) => ({
+          id: s.id,
+          questionId: s.questionId,
+          language: s.language,
+          runtimeMs: s.runtimeMs,
+          memoryKb: s.memoryKb,
+          createdAt: s.createdAt,
+          status: 'SUBMITTED',
+          question: {
+            title: s.question.title,
+            type: s.question.type,
+          },
+        }));
+
+        res.status(200).json({
+          success: true,
+          data: { submissions: participantSubmissions },
+        });
+        return;
+      }
 
       res.status(200).json({
         success: true,

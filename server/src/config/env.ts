@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
+import path from 'path';
 
+// Explicitly load server .env (and root .env if running from workspace root)
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+dotenv.config({ path: path.resolve(process.cwd(), 'server/.env') });
+if (typeof __dirname !== 'undefined') {
+  dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+}
 dotenv.config();
 
 const envSchema = z.object({

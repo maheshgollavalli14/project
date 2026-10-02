@@ -14,7 +14,6 @@ import { TimerService } from './services/timer.service.js';
 import authRoutes from './routes/auth.routes.js';
 import contestRoutes from './routes/contest.routes.js';
 import submissionRoutes from './routes/submission.routes.js';
-import teamRoutes from './routes/team.routes.js';
 import leaderboardRoutes from './routes/leaderboard.routes.js';
 import violationRoutes from './routes/violation.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
@@ -26,7 +25,7 @@ const server = http.createServer(app);
 // Initialize Socket.IO with CORS
 const io = new Server(server, {
   cors: {
-    origin: [env.CLIENT_URL, 'http://localhost:5173', 'http://127.0.0.1:5173'],
+    origin: (origin, callback) => callback(null, true),
     credentials: true,
   },
 });
@@ -41,7 +40,7 @@ app.use(
 
 app.use(
   cors({
-    origin: [env.CLIENT_URL, 'http://localhost:5173', 'http://127.0.0.1:5173'],
+    origin: (origin, callback) => callback(null, true),
     credentials: true,
   })
 );
@@ -65,7 +64,6 @@ app.use('/api/contests', contestRoutes);
 app.use('/api/rounds', contestRoutes);
 app.use('/api', contestRoutes);
 app.use('/api', submissionRoutes);
-app.use('/api/team', teamRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/violations', violationRoutes);
 app.use('/api/payments', paymentRoutes);
@@ -81,7 +79,7 @@ TimerService.initialize(io);
 // Start HTTP & Socket server
 if (process.env.NODE_ENV !== 'test') {
   const PORT = parseInt(env.PORT, 10) || 5000;
-  server.listen(PORT, () => {
+  server.listen(PORT, '0.0.0.0', () => {
     logger.info(`⚡ CODEBREAK server running on port ${PORT}`, 'ServerInit', {
       port: PORT,
       nodeEnv: env.NODE_ENV,

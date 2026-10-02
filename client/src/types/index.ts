@@ -1,6 +1,4 @@
-export type Role = 'PARTICIPANT' | 'TEAM_MEMBER' | 'ADMIN';
-
-export type ParticipationType = 'INDIVIDUAL' | 'TEAM';
+export type Role = 'PARTICIPANT' | 'ADMIN';
 
 export type ContestStatus = 'UPCOMING' | 'ACTIVE' | 'PAUSED' | 'COMPLETED';
 
@@ -21,8 +19,6 @@ export type SubmissionStatus =
   | 'COMPILATION_ERROR' 
   | 'RUNTIME_ERROR';
 
-export type LockStatus = 'ACTIVE' | 'RELEASED' | 'EXPIRED';
-
 export type ViolationType = 
   | 'FULLSCREEN_EXIT' 
   | 'TAB_SWITCH' 
@@ -39,7 +35,6 @@ export interface User {
   role: Role;
   isActive: boolean;
   profile?: Profile;
-  teamMember?: TeamMember;
 }
 
 export interface Profile {
@@ -49,26 +44,7 @@ export interface Profile {
   college: string;
   phone: string;
   participantId: string;
-  participation: ParticipationType;
   avatarUrl?: string;
-}
-
-export interface Team {
-  id: string;
-  name: string;
-  teamId: string;
-  college: string;
-  status: string;
-  members: TeamMember[];
-}
-
-export interface TeamMember {
-  id: string;
-  teamId: string;
-  userId: string;
-  roleInTeam: 'LEADER' | 'MEMBER';
-  user?: User;
-  team?: Team;
 }
 
 export interface Contest {
@@ -135,27 +111,8 @@ export interface Question {
   allowedLanguages: string;
   options?: QuestionOption[];
   testCases?: TestCase[];
-  currentLock?: ProblemLock | null;
   savedState?: SavedCode | null;
   submissions?: any[];
-}
-
-export interface ProblemLock {
-  id: string;
-  roundId: string;
-  questionId: string;
-  teamId: string;
-  userId: string;
-  user?: {
-    profile?: {
-      fullName: string;
-    }
-  };
-  lockedAt: string;
-  lastHeartbeat: string;
-  expiresAt: string;
-  status: LockStatus;
-  isLockedByMe?: boolean;
 }
 
 export interface SavedCode {
@@ -173,7 +130,6 @@ export interface Submission {
   id: string;
   questionId: string;
   userId: string;
-  teamId?: string | null;
   roundId: string;
   language: string;
   code: string;
@@ -196,23 +152,20 @@ export interface Score {
   contestId: string;
   roundId?: string | null;
   userId?: string | null;
-  teamId?: string | null;
   points: number;
   solvedCount: number;
   penaltySeconds: number;
   isQualified: boolean;
   rank?: number | null;
   user?: User;
-  team?: Team;
 }
 
 export interface LeaderboardEntry {
   rank: number;
-  id: string; // userId or teamId
+  id: string; // userId
   name: string;
-  code: string; // participantId or teamId
+  code: string; // participantId
   college: string;
-  type: ParticipationType;
   solvedCount: number;
   points: number;
   penaltySeconds: number;
@@ -223,7 +176,6 @@ export interface LeaderboardEntry {
 export interface Violation {
   id: string;
   userId: string;
-  teamId?: string | null;
   contestId: string;
   roundId?: string | null;
   type: ViolationType;
@@ -238,10 +190,6 @@ export interface Violation {
       fullName: string;
       participantId: string;
       college: string;
-    }
-  };
-  team?: {
-    name: string;
-    teamId: string;
+    };
   };
 }
