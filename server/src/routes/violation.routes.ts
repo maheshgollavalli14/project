@@ -8,5 +8,6 @@ router.post('/', authenticate, ViolationController.logViolation);
 router.post('/resolve-fullscreen', authenticate, ViolationController.resolveFullscreen);
 router.post('/fullscreen-return', authenticate, ViolationController.resolveFullscreen);
 router.post('/fullscreen-timeout', authenticate, ViolationController.timeoutFullscreen);
+router.post('/clear-countdown', authenticate, ViolationController.clearCountdown);
 
 export default router;

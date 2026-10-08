@@ -393,4 +393,17 @@ export class ViolationController {
       next(err);
     }
   }
+
+  static async clearCountdown(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.userId;
+      const { roundId } = req.body;
+      if (roundId) {
+        FullscreenTimerService.clearCountdown(userId, roundId);
+      }
+      res.status(200).json({ success: true, message: 'Fullscreen countdown cleared' });
+    } catch (err) {
+      next(err);
+    }
+  }
 }

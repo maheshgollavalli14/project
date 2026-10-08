@@ -58,6 +58,9 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
   const lastViolationTime = useRef<Record<string, number>>({});
+  const isNavigatingAwayRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const fullscreenExitTimerRef = useRef<any>(null);
 
   const clearReturnCountdown = useCallback(() => {
     if (countdownIntervalRef.current) {
@@ -81,6 +84,14 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
       setIsTimeout(false);
 
       countdownIntervalRef.current = setInterval(() => {
+        if (isNavigatingAwayRef.current || !isMountedRef.current) {
+          if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+            countdownIntervalRef.current = null;
+          }
+          return;
+        }
+
         const now = Date.now();
         const remainingMs = targetDeadline - now;
         const remainingSec = Math.max(0, Math.ceil(remainingMs / 1000));
@@ -269,6 +280,47 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
     }
   }, [isAdmin, enableFullscreen]);
 
+  // Navigation & Lifecycle handler (Handles browser back / popstate without submitting)
+  useEffect(() => {
+    isMountedRef.current = true;
+    isNavigatingAwayRef.current = false;
+
+    const handlePopState = () => {
+      isNavigatingAwayRef.current = true;
+      if (fullscreenExitTimerRef.current) {
+        clearTimeout(fullscreenExitTimerRef.current);
+        fullscreenExitTimerRef.current = null;
+      }
+      clearReturnCountdown();
+
+      // Ensure unsaved draft is persisted before leaving
+      if (onBeforeFullscreenExit) {
+        onBeforeFullscreenExit().catch(() => {});
+      }
+
+      // Tell backend to cancel any pending fullscreen return countdown
+      if (roundId) {
+        api.post('/api/violations/clear-countdown', { roundId, contestId }).catch(() => {});
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      isNavigatingAwayRef.current = true;
+      isMountedRef.current = false;
+      if (fullscreenExitTimerRef.current) {
+        clearTimeout(fullscreenExitTimerRef.current);
+        fullscreenExitTimerRef.current = null;
+      }
+      clearReturnCountdown();
+      if (roundId) {
+        api.post('/api/violations/clear-countdown', { roundId, contestId }).catch(() => {});
+      }
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [roundId, contestId, onBeforeFullscreenExit, clearReturnCountdown]);
+
   // Event listeners for active contest
   useEffect(() => {
     if (isAdmin) return;
@@ -279,6 +331,10 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
       setIsFullscreen(active);
 
       if (active) {
+        if (fullscreenExitTimerRef.current) {
+          clearTimeout(fullscreenExitTimerRef.current);
+          fullscreenExitTimerRef.current = null;
+        }
         setFullscreenBlocked(false);
         setHasEnteredFullscreen(true);
         // Only resolve return if not auto-submitted/locked
@@ -286,54 +342,82 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
           handleFullscreenReturn();
         }
       } else {
-        // Only trigger fullscreen exit violation if participant was previously in fullscreen
-        if (enableFullscreen && hasEnteredFullscreen) {
-          if (isAutoSubmitted || fullscreenCount >= 3 || isTimeout) {
-            setWarningType('FULLSCREEN_EXIT');
-            setWarningModalOpen(true);
+        // If participant is navigating away or component is unmounting, DO NOT treat as fullscreen violation!
+        if (isNavigatingAwayRef.current || !isMountedRef.current) {
+          return;
+        }
+
+        if (fullscreenExitTimerRef.current) {
+          clearTimeout(fullscreenExitTimerRef.current);
+        }
+
+        // Debounce fullscreen exit handling by 150ms to allow popstate or unmount to register if user pressed Back
+        fullscreenExitTimerRef.current = setTimeout(async () => {
+          if (isNavigatingAwayRef.current || !isMountedRef.current) {
+            return;
+          }
+          if (document.fullscreenElement !== null) {
             return;
           }
 
-          // Best-effort autosave latest work before reporting violation to server
-          if (onBeforeFullscreenExit) {
-            try {
-              await Promise.race([
-                onBeforeFullscreenExit(),
-                new Promise((resolve) => setTimeout(resolve, 800)),
-              ]);
-            } catch (err) {
-              console.warn('Draft save before fullscreen exit error:', err);
+          // Only trigger fullscreen exit violation if participant was previously in fullscreen
+          if (enableFullscreen && hasEnteredFullscreen) {
+            if (isAutoSubmitted || fullscreenCount >= 3 || isTimeout) {
+              setWarningType('FULLSCREEN_EXIT');
+              setWarningModalOpen(true);
+              return;
+            }
+
+            // Best-effort autosave latest work before reporting violation to server
+            if (onBeforeFullscreenExit) {
+              try {
+                await Promise.race([
+                  onBeforeFullscreenExit(),
+                  new Promise((resolve) => setTimeout(resolve, 800)),
+                ]);
+              } catch (err) {
+                console.warn('Draft save before fullscreen exit error:', err);
+              }
+            }
+
+            if (isNavigatingAwayRef.current || !isMountedRef.current) {
+              return;
+            }
+
+            const result = await reportViolation('FULLSCREEN_EXIT', {
+              message: 'Participant exited fullscreen mode',
+            });
+
+            if (isNavigatingAwayRef.current || !isMountedRef.current) {
+              return;
+            }
+
+            const resData = result?.data?.data || result?.data;
+            const countFromServer = resData?.fullscreenExitCount ?? (fullscreenCount + 1);
+            setFullscreenCount(countFromServer);
+            setWarningType('FULLSCREEN_EXIT');
+            setWarningModalOpen(true);
+
+            if (resData?.isAutoSubmitted || countFromServer >= 3) {
+              clearReturnCountdown();
+              setIsAutoSubmitted(true);
+              if (onAutoSubmit) {
+                onAutoSubmit();
+              }
+            } else {
+              // Exits 1 & 2: Start 10-second return countdown
+              const serverDeadline = resData?.deadline;
+              const deadlineMs = serverDeadline ? new Date(serverDeadline).getTime() : undefined;
+              startReturnCountdown(deadlineMs);
             }
           }
-
-          const result = await reportViolation('FULLSCREEN_EXIT', {
-            message: 'Participant exited fullscreen mode',
-          });
-
-          const resData = result?.data?.data || result?.data;
-          const countFromServer = resData?.fullscreenExitCount ?? (fullscreenCount + 1);
-          setFullscreenCount(countFromServer);
-          setWarningType('FULLSCREEN_EXIT');
-          setWarningModalOpen(true);
-
-          if (resData?.isAutoSubmitted || countFromServer >= 3) {
-            clearReturnCountdown();
-            setIsAutoSubmitted(true);
-            if (onAutoSubmit) {
-              onAutoSubmit();
-            }
-          } else {
-            // Exits 1 & 2: Start 10-second return countdown
-            const serverDeadline = resData?.deadline;
-            const deadlineMs = serverDeadline ? new Date(serverDeadline).getTime() : undefined;
-            startReturnCountdown(deadlineMs);
-          }
-        }
+        }, 150);
       }
     };
 
     // 2. Tab switch / Visibility API listener -> Non-blocking Toast
     const handleVisibilityChange = () => {
+      if (isNavigatingAwayRef.current || !isMountedRef.current) return;
       if (document.hidden) {
         reportViolation('TAB_SWITCH', { message: 'Contest tab hidden' });
         showToast('Warning: Leaving contest tab has been recorded.', 'TAB_SWITCH', 4000);
@@ -342,6 +426,7 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
 
     // 3. Window blur listener -> Non-blocking Toast
     const handleWindowBlur = () => {
+      if (isNavigatingAwayRef.current || !isMountedRef.current) return;
       if (document.hidden) return;
       reportViolation('WINDOW_BLUR', { message: 'Window lost focus' });
       showToast('Warning: Focus loss recorded. Keep focus on the active contest workspace.', 'WINDOW_BLUR', 4000);
@@ -421,6 +506,10 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
+      if (fullscreenExitTimerRef.current) {
+        clearTimeout(fullscreenExitTimerRef.current);
+        fullscreenExitTimerRef.current = null;
+      }
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -438,11 +527,15 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
     hasEnteredFullscreen,
     fullscreenCount,
     isAutoSubmitted,
+    isTimeout,
     onBeforeFullscreenExit,
     onAutoSubmit,
     reportViolation,
     showToast,
     triggerModalWarning,
+    handleFullscreenReturn,
+    startReturnCountdown,
+    clearReturnCountdown,
   ]);
 
   if (isAdmin) {
