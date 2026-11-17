@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: codebreak-backend
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: npm run build:render
+    startCommand: npm run start:render
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: CLIENT_URL
+        value: https://client-rho-eosin.vercel.app
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: PAYMENT_GATEWAY
+        value: mock
+      - key: EXECUTION_TIMEOUT_MS
+        value: "3000"
+      - key: MAX_MEMORY_MB
+        value: "128"
+      - key: ADMIN_EMAIL
+        value: admin@codebreak.dev
+      - key: ADMIN_NAME
+        value: Contest Director
+      - key: ADMIN_PASSWORD
+        sync: false

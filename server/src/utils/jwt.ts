@@ -37,20 +37,22 @@ export function verifyTokenIgnoringExpiration(token: string): TokenPayload | nul
 }
 
 export function setAuthCookie(res: Response, token: string): void {
+  const isSecure = env.COOKIE_SECURE;
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
-    secure: env.COOKIE_SECURE,
-    sameSite: 'lax',
+    secure: isSecure,
+    sameSite: isSecure ? 'none' : 'lax',
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     path: '/',
   });
 }
 
 export function clearAuthCookie(res: Response): void {
+  const isSecure = env.COOKIE_SECURE;
   res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
-    secure: env.COOKIE_SECURE,
-    sameSite: 'lax',
+    secure: isSecure,
+    sameSite: isSecure ? 'none' : 'lax',
     path: '/',
   });
 }

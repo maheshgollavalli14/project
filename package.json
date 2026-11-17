@@ -14,8 +14,12 @@
     "prebuild": "npm run install:all",
     "build:server": "npm --prefix server run build",
     "build:client": "npm --prefix client run build",
+    "build:render": "npm run install:server && npm run build:server",
     "build": "npm run build:server && npm run build:client",
     "start": "npm --prefix server start",
+    "start:render": "npm --prefix server start",
+    "db:push": "npm --prefix server run prisma:push",
+    "db:seed-questions": "npm --prefix server run db:seed-questions",
     "test:server": "npm --prefix server test"
   },
   "keywords": [

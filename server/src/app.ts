@@ -9,6 +9,7 @@ import { logger } from './utils/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { registerSocketHandlers } from './sockets/index.js';
 import { TimerService } from './services/timer.service.js';
+import { prisma } from './config/db.js';
 
 // Route imports
 import authRoutes from './routes/auth.routes.js';
@@ -51,6 +52,9 @@ export function isOriginAllowed(origin?: string): boolean {
 
   // Allow Vercel preview and deployment URLs (*.vercel.app)
   if (/^https:\/\/([a-zA-Z0-9-]+\.)*vercel\.app$/.test(origin)) return true;
+
+  // Allow Render services and preview URLs (*.onrender.com)
+  if (/^https:\/\/([a-zA-Z0-9-]+\.)*onrender\.com$/.test(origin)) return true;
 
   // Allow local development origins
   if (DEV_ORIGINS.includes(origin)) return true;
@@ -154,13 +158,59 @@ TimerService.initialize(io);
 // Start HTTP & Socket server
 if (process.env.NODE_ENV !== 'test') {
   const PORT = parseInt(env.PORT, 10) || 5000;
-  server.listen(PORT, '0.0.0.0', () => {
+  const serverInstance = server.listen(PORT, '0.0.0.0', () => {
     logger.info(`⚡ CODEBREAK server running on port ${PORT}`, 'ServerInit', {
       port: PORT,
       nodeEnv: env.NODE_ENV,
       clientUrl: env.CLIENT_URL,
     });
   });
+
+  // Graceful shutdown handling for Render / Container orchestrators
+  const shutdown = async (signal: string) => {
+    logger.info(`Received ${signal}. Starting graceful shutdown...`, 'ServerShutdown');
+
+    // Stop accepting new connections and close HTTP/Socket server
+    serverInstance.close(async (err) => {
+      if (err) {
+        logger.error('Error during HTTP server close', 'ServerShutdown', { error: err.message });
+      } else {
+        logger.info('HTTP and WebSocket server closed.', 'ServerShutdown');
+      }
+
+      // Close Socket.IO instance
+      try {
+        io.close();
+        logger.info('Socket.IO engine closed.', 'ServerShutdown');
+      } catch (ioErr) {
+        logger.error('Error closing Socket.IO', 'ServerShutdown', {
+          error: ioErr instanceof Error ? ioErr.message : String(ioErr),
+        });
+      }
+
+      // Disconnect Prisma Client
+      try {
+        await prisma.$disconnect();
+        logger.info('Prisma database connection disconnected.', 'ServerShutdown');
+      } catch (dbErr) {
+        logger.error('Error disconnecting database', 'ServerShutdown', {
+          error: dbErr instanceof Error ? dbErr.message : String(dbErr),
+        });
+      }
+
+      logger.info('Graceful shutdown completed successfully.', 'ServerShutdown');
+      process.exit(0);
+    });
+
+    // Forced shutdown fallback if in-flight connections fail to terminate within 10s
+    setTimeout(() => {
+      logger.error('Forced shutdown due to 10s timeout expiration', 'ServerShutdown');
+      process.exit(1);
+    }, 10000).unref();
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 export { app, server, io };

@@ -5,12 +5,14 @@ import { app, isOriginAllowed } from '../src/app.js';
 describe('CORS Configuration and Production Origin Validation', () => {
   const verifiedProductionOrigin = 'https://client-rho-eosin.vercel.app';
   const previewVercelOrigin = 'https://client-git-main-maheshgollavalli14.vercel.app';
+  const renderOrigin = 'https://codebreak-backend.onrender.com';
   const localDevOrigin = 'http://localhost:5173';
   const disallowedOrigin = 'https://evil-attacker.example.com';
 
   it('validates allowed and disallowed origins correctly via isOriginAllowed', () => {
     expect(isOriginAllowed(verifiedProductionOrigin)).toBe(true);
     expect(isOriginAllowed(previewVercelOrigin)).toBe(true);
+    expect(isOriginAllowed(renderOrigin)).toBe(true);
     expect(isOriginAllowed(localDevOrigin)).toBe(true);
     expect(isOriginAllowed(undefined)).toBe(true); // server-to-server / curl
     expect(isOriginAllowed(disallowedOrigin)).toBe(false);
